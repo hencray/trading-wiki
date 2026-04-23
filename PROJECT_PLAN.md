@@ -2,7 +2,7 @@
 
 *Started: April 16, 2026*
 *Last updated: 2026-04-22*
-*Status: Planning locked — pre-Phase-1*
+*Status: Pre-Phase-1 complete — next session picks up at Phase 1 kickoff checklist (see 📌 Next Steps)*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -1491,7 +1491,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] **`.env.example` + `.gitignore`** — done 2026-04-21
 - [x] **Repo hosting** — **GitHub private** (2026-04-22)
 - [x] ~~Clarify format of course-platform text content~~ — **resolved 2026-04-22:** user provides content directly; no platform-specific handler needed
-- [ ] `git init` + push to new GitHub private repo (before any Phase 1 code lands)
+- [x] ~~`git init` + push to new GitHub private repo~~ — **resolved 2026-04-22:** repo `hencray/trading-wiki` already existed from 2026-04-21; today's pre-Phase-1 work committed as `70d13b1` and pushed to `origin/main`.
 
 ### Phase 1 kickoff checklist (after Phase 0 passes)
 - [ ] Set up repo structure (`handlers/`, `core/`, `cli.py`, `config.py`, `ARCHITECTURE.md`)
