@@ -58,3 +58,6 @@ logs/
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/cache
+
+# Claude Code per-machine local settings (project-level settings.json IS committed when present)
+.claude/settings.local.json

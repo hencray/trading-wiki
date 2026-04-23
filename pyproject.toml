@@ -12,6 +12,7 @@ dependencies = [
     "yoyo-migrations>=9.0",
     "sqlite-vec>=0.1.6",
     "pydantic-settings>=2.14.0",
+    "openai>=2.32.0",
 ]
 
 [project.scripts]

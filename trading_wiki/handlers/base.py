@@ -5,18 +5,18 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class _StrictModel(BaseModel):
+class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class Segment(_StrictModel):
+class Segment(StrictModel):
     seq: int
     text: str
     start_seconds: float | None = None
     end_seconds: float | None = None
 
 
-class ContentRecord(_StrictModel):
+class ContentRecord(StrictModel):
     source_type: str
     source_id: str
     title: str
