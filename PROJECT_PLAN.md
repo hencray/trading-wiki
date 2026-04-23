@@ -2,7 +2,7 @@
 
 *Started: April 16, 2026*
 *Last updated: 2026-04-22*
-*Status: Pre-Phase-1 complete — next session picks up at Phase 1 kickoff checklist (see 📌 Next Steps)*
+*Status: Phase 1 in progress — scaffolding + tooling + ContentRecord/schema/BaseHandler + structlog + Settings loader all landed. Next session picks up at task #4 (local video handler).*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -222,7 +222,7 @@ trading-research/
 Raw source files stored content-addressed: `storage/{source_type}/{hash}.{ext}`
 Transcripts saved to both DB and disk as `.txt`/`.srt` for re-processing.
 
-**Status:** 🟡 In planning — ready to start building once Phase 0 complete and Discord export path confirmed
+**Status:** 🟠 In progress (2026-04-22) — Phase 0 skipped; foundation in place. ✅ Package layout (`trading_wiki/` + `tests/` + `migrations/`) · ✅ `pyproject.toml` + `uv` + `ruff` + `mypy --strict` + `pytest` + `pre-commit` + GitHub Actions CI · ✅ `ContentRecord`/`Segment`/`BaseHandler` (Pydantic v2, `extra="forbid"`) · ✅ SQLite schema + `yoyo-migrations` applier + roundtrip helpers · ✅ `structlog` JSON logging · ✅ Pydantic-settings `Settings` loader. 26 tests at 97% coverage. Handlers (local video → YouTube → Discord → course-platform → stubs) are next.
 
 ---
 
@@ -1301,12 +1301,15 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 ---
 
 ## 🧱 Tentative Tech Stack
-- Python throughout
+- Python 3.12 throughout (pinned via `.python-version`, managed by `uv`)
+- `uv` for env + deps (loose constraints in `pyproject.toml`, exact pins in `uv.lock`)
+- `ruff` (lint + format), `mypy --strict` + `pydantic.mypy`, `pytest` + `pytest-cov`, `pre-commit` (ruff + mypy + gitleaks + hygiene hooks), GitHub Actions CI
 - Claude API (Opus 4.7 / Sonnet 4.6 / Haiku 4.5) for extraction
 - OpenAI Whisper API for transcription
 - Polygon.io Developer tier for market data (Advanced tier revisit if L2 needed)
 - Alpaca for execution (paper → live)
-- SQLite + `sqlite-vec` → Postgres when outgrown
+- SQLite + `sqlite-vec` → Postgres when outgrown · `yoyo-migrations` for schema versioning
+- Pydantic v2 + `pydantic-settings` for typed models and env loading
 - `pandas-ta` for indicators (pinned version)
 - Streamlit for dashboards / review UI / ingestion UI
 - Obsidian for wiki browsing (reads auto-generated markdown)
@@ -1344,6 +1347,15 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **Discord ingestion: pasted text, not DiscordChatExporter** — user copies messages from member view and the handler normalises. Sidesteps DCE ToS violation; eliminates throwaway-account requirement.
 - **Course platform text:** user extracts and provides content directly (resolved 2026-04-22). No platform-specific scraper. Handler accepts text blobs with source metadata; probably shares the Discord pasted-text handler.
 - **Transcripts persisted as `.md` files in repo** (alongside SQLite index). Enables cloud-portable Phase 2 work; SQLite is a derived, rebuildable index, not the source of truth.
+- **Project layout** (resolved 2026-04-22): real Python package at `trading_wiki/`, tests mirror at `tests/`, migrations at `migrations/`. `pyproject.toml` (PEP 621) is the single source of truth for deps and tool config. Python pinned to 3.12 via `.python-version`.
+- **Tooling layer frontloaded** (resolved 2026-04-22): `uv` for env+deps (loose constraints in pyproject, exact pins in committed `uv.lock`); `ruff` for lint+format; `mypy --strict` (with `pydantic.mypy` plugin) checking both `trading_wiki/` and `tests/`; `pytest` + `pytest-cov` (branch coverage on); `pre-commit` running ruff, mypy, gitleaks, and basic hygiene hooks; GitHub Actions CI runs the full pre-commit suite plus pytest on push to main and on every PR.
+- **TDD discipline** (resolved 2026-04-22): RED → GREEN → REFACTOR with one behavior per cycle. Production code only after a failing test. Currently 26 tests at 97% coverage.
+- **`ContentRecord` and `Segment` are Pydantic v2 models** with a shared `_StrictModel` base that sets `extra="forbid"` so typos in field names raise instead of silently dropping data. `Segment` carries optional float `start_seconds`/`end_seconds` so the same model serves video transcripts and untimestamped text. `BaseHandler` is an `abc.ABC` with abstract `can_handle` and `ingest` — the only extension seam for new source types.
+- **SQLite schema** (resolved 2026-04-22): synthetic `INTEGER PRIMARY KEY` on `content` with `UNIQUE(source_type, source_id)`; ISO-8601 TEXT for timestamps; JSON TEXT for `metadata`; segments normalized into a separate table with `FK ... ON DELETE CASCADE` and `UNIQUE(content_id, seq)`; nullable `embedding_id` column reserved for the future `sqlite-vec` virtual table. Indexes on `source_type`, `parent_id`, `content_id`.
+- **`sqlite-vec` virtual table deferred** to a later migration once Phase 2 picks an embedding model and dim (voyage-3 = 1024 / openai-3-small = 1536 / openai-3-large = 3072). The `embedding_id` column is in place; the vec0 table is not.
+- **Migrations:** `yoyo-migrations` (numbered SQL files in `migrations/`) chosen over Alembic — lightweight, no SQLAlchemy coupling, applier is a 10-line wrapper in `core/db.py`.
+- **Settings loader:** `pydantic-settings` `Settings` class — `SecretStr | None` for all API keys (redacted in repr/logs, missing values explicit rather than blank strings), `Literal[...]` for `log_level` so typos raise immediately, `Path` for `db_path` and `content_dir`. All keys optional and default to `None` so the project remains runnable without credentials for systems not yet built; calling code validates at the use site.
+- **`.env.example` updated** (2026-04-22): `DISCORD_USER_TOKEN` block removed. Pasted-text Discord ingestion needs no env vars.
 
 ### Phase 2
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
@@ -1493,12 +1505,12 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] ~~Clarify format of course-platform text content~~ — **resolved 2026-04-22:** user provides content directly; no platform-specific handler needed
 - [x] ~~`git init` + push to new GitHub private repo~~ — **resolved 2026-04-22:** repo `hencray/trading-wiki` already existed from 2026-04-21; today's pre-Phase-1 work committed as `70d13b1` and pushed to `origin/main`.
 
-### Phase 1 kickoff checklist (after Phase 0 passes)
-- [ ] Set up repo structure (`handlers/`, `core/`, `cli.py`, `config.py`, `ARCHITECTURE.md`)
-- [ ] Build `ContentRecord` + SQLite schema + base handler interface
-- [ ] Add `structlog` JSON logging
-- [ ] Add `.env` + `python-dotenv`, optional `gitleaks` pre-commit
-- [ ] Implement local video handler (v1 source videos — content in hand)
+### Phase 1 kickoff checklist
+- [x] ~~Set up repo structure~~ — done 2026-04-22 (`trading_wiki/` package, `tests/`, `migrations/`, `ARCHITECTURE.md`)
+- [x] ~~Build `ContentRecord` + SQLite schema + base handler interface~~ — done 2026-04-22, TDD'd
+- [x] ~~Add `structlog` JSON logging~~ — done 2026-04-22 (`trading_wiki/core/logging.py`)
+- [x] ~~Add `.env` + `python-dotenv`, optional `gitleaks` pre-commit~~ — done 2026-04-22 (pydantic-settings `Settings`; gitleaks runs in pre-commit + CI)
+- [ ] Implement local video handler (v1 source videos — content in hand) ← **next**
 - [ ] Implement YouTube handler
 - [ ] Implement Discord handler (pasted-text normaliser)
 - [ ] Implement course-platform text handler (paste-in; likely shares code with Discord handler)
