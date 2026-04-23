@@ -35,25 +35,38 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 
 | Path | Role |
 |---|---|
-| `handlers/base.py` | `ContentRecord` + `BaseHandler` interface |
-| `handlers/local_video.py` | local video → ffmpeg audio → Whisper |
-| `handlers/youtube.py` | YouTube → yt-dlp → existing subs or Whisper |
-| `handlers/discord.py` | pasted-text normaliser (author / timestamp / thread heuristics) |
-| `handlers/{pdf,epub,article}.py` | stubs — implement post-Phase-1 |
-| `core/db.py` | SQLite schema + queries |
-| `core/storage.py` | content-addressed file storage helpers |
-| `core/transcribe.py` | Whisper API wrapper |
-| `core/logging.py` | `structlog` JSON setup |
-| `core/secrets.py` | `.env` loader + validators |
-| `cli.py` | `ingest <url-or-file>` dispatcher |
-| `config.py` | shared paths, model names, tunables |
+| `trading_wiki/handlers/base.py` | `ContentRecord` + `BaseHandler` interface |
+| `trading_wiki/handlers/local_video.py` | local video → ffmpeg audio → Whisper |
+| `trading_wiki/handlers/youtube.py` | YouTube → yt-dlp → existing subs or Whisper |
+| `trading_wiki/handlers/discord.py` | pasted-text normaliser (author / timestamp / thread heuristics) |
+| `trading_wiki/handlers/{pdf,epub,article}.py` | stubs — implement post-Phase-1 |
+| `trading_wiki/core/db.py` | SQLite schema + migration applier (yoyo-migrations) |
+| `trading_wiki/core/storage.py` | content-addressed file storage helpers |
+| `trading_wiki/core/transcribe.py` | Whisper API wrapper |
+| `trading_wiki/core/logging.py` | `structlog` JSON setup |
+| `trading_wiki/core/secrets.py` | `.env` loader + validators |
+| `trading_wiki/cli.py` | `ingest <url-or-file>` dispatcher; `trading-wiki` console script entry |
+| `trading_wiki/config.py` | shared paths, model names, tunables |
+| `migrations/` | numbered `.sql` files applied by `yoyo` |
+| `tests/` | pytest suite; mirrors `trading_wiki/` package layout |
 
 ## Discipline (from CLAUDE.md / PROJECT_PLAN.md)
 
 - `structlog` JSON logging from day one — not retrofitted later.
 - `.env` + `python-dotenv` from day one — never commit secrets.
-- Pin package versions when adding dependencies.
+- Loose constraints in `pyproject.toml`; exact pins in `uv.lock` (committed).
 - The `Strategy` interface (Phase 4) will be reused verbatim by backtest, paper, and live code paths. No adapters. The same discipline applies here: handlers conform to one `BaseHandler` interface, no per-handler adapters in the CLI.
+
+## Tooling
+
+- **`uv`** — environment + dependency management (`uv sync`, `uv add`, `uv run`).
+- **`ruff`** — lint + format (`uv run ruff check .`, `uv run ruff format .`).
+- **`mypy --strict`** — type checking (`uv run mypy trading_wiki`).
+- **`pytest`** — tests + coverage (`uv run pytest`).
+- **`pre-commit`** — runs ruff, mypy, gitleaks on every commit.
+- **GitHub Actions CI** — lint + typecheck + test on push and PR.
+
+Python pinned to 3.12 via `.python-version`; `uv` will install on first sync if missing.
 
 ## What this doc is not
 
