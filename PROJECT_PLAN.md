@@ -1,7 +1,7 @@
 # Trading System Project Plan
 
 *Started: April 16, 2026*
-*Last updated: 2026-04-21*
+*Last updated: 2026-04-22*
 *Status: Planning locked — pre-Phase-1*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
@@ -161,8 +161,7 @@ Build the system that eats content and produces clean, structured text.
 **Tooling by source type:**
 - Local videos → extract audio (ffmpeg) → OpenAI Whisper API
 - YouTube → `yt-dlp` → use existing subs if human-made, else Whisper API
-- Discord → export via DiscordChatExporter (JSON) → parse → store with thread structure preserved
-  > **ToS note:** DiscordChatExporter uses user tokens, which violates Discord ToS. Practical mitigation: do NOT use your primary Discord account. Create a purpose-specific account joined only to the target server. Also captured in Named Risks.
+- Discord → manual copy/paste of messages → pasted-text handler normalises (author, timestamp, thread heuristics) → store. Sidesteps DCE ToS violation — no user token, no throwaway account needed. User has member access on personal account.
 - Twitter/X → depends on access — `snscrape` (may be broken), paid API, or manual export
 - PDFs → `pdfplumber` / `PyMuPDF`, OCR fallback for scanned
 - EPUBs → `ebooklib`
@@ -180,13 +179,15 @@ Build the system that eats content and produces clean, structured text.
 
 **Twitter/X:** Deferred — not in v1
 
-**Discord:** TODO — need to verify export path with DiscordChatExporter before committing
+**Discord:** resolved 2026-04-22 — pasted-text handler, not DiscordChatExporter. User has member access on personal account and will paste relevant channels/messages as found.
+
+**Course platform text:** user extracts and hands over content directly (resolved 2026-04-22 — platform-specific scraping not needed). Handler accepts text blobs with source metadata; likely shares the Discord paste-in normaliser.
 
 **Build order for v1:**
 1. Core scaffolding: `ContentRecord`, DB schema, storage layout, base handler interface
 2. Local video handler (v1 source content in hand, fastest feedback loop)
 3. YouTube handler (reuses transcription code)
-4. Discord handler (pending export verification)
+4. Discord handler (pasted-text normaliser — much simpler than DCE path)
 5. Stubs for PDF / EPUB / article (implement later)
 
 **Project layout:**
@@ -1340,6 +1341,9 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - v1 build order: scaffolding → local video → YouTube → Discord → (stubs for PDF/EPUB/article)
 - Structured logging with `structlog` from day 1
 - Secrets via `.env` + `python-dotenv` from day 1
+- **Discord ingestion: pasted text, not DiscordChatExporter** — user copies messages from member view and the handler normalises. Sidesteps DCE ToS violation; eliminates throwaway-account requirement.
+- **Course platform text:** user extracts and provides content directly (resolved 2026-04-22). No platform-specific scraper. Handler accepts text blobs with source metadata; probably shares the Discord pasted-text handler.
+- **Transcripts persisted as `.md` files in repo** (alongside SQLite index). Enables cloud-portable Phase 2 work; SQLite is a derived, rebuildable index, not the source of truth.
 
 ### Phase 2
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
@@ -1398,6 +1402,8 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **Feature store:** Deferred but budgeted for mid-Phase-5 (when 3+ strategies share indicators)
 - **Observability:** Structured logging from Phase 1, metrics by Phase 5
 - **Secrets management:** `.env` + gitleaks from day 1
+- **Repo hosting:** **GitHub private** (decided 2026-04-22). Videos stay local (`.gitignore`d under `content/`); everything else — code, transcripts, specs, dated backtest reports, wiki markdown — is committed so remote Claude Code sessions and Claude iOS can work against GitHub.
+- **Cloud-portability seam:** ingestion (raw video → transcript) is the only strictly-local step. Phase 2 onward must run against committed transcripts + a migration-defined SQLite rebuildable from them — never require access to the raw video files.
 - **ARCHITECTURE.md:** Maintain living architecture doc alongside plan
 
 ---
@@ -1432,7 +1438,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 
 **Legal / ToS**
 - Course vendor (v1 source) may assert derivative-works claim over extracted content — mitigation: keep pipeline for personal use only, don't publish the wiki, don't monetize derivative models
-- Discord ToS prohibits self-bots / user-token automation (DiscordChatExporter route) — enforcement against personal archiving is rare but not zero. Mitigation: throwaway Discord account joined only to target server
+- ~~Discord ToS prohibits self-bots / user-token automation (DiscordChatExporter route) — enforcement against personal archiving is rare but not zero. Mitigation: throwaway Discord account joined only to target server~~ **Resolved 2026-04-22:** ingestion approach changed to pasted text (no user token, no automation). Risk no longer applies.
 
 **Platform / vendor**
 - Polygon / Alpaca / OpenAI / Anthropic pricing or API changes that break the pipeline or change economics
@@ -1460,11 +1466,12 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 
 *All resolved. Remaining checkboxes are things to execute before code, not decisions to make.*
 
-- [x] **Phase 0 smoke test** — TO DO (2–4 hours on v1 source content before any code)
+- [x] **Phase 0 smoke test** — **skipped 2026-04-22** (user opted out; `phase0_worksheet.md` retained as optional template). Risk that v1 source is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front.
 - [x] **Specific course identity** — **the v1 source content** ✅
 - [x] **Asset class** — **Stocks only, QQQ/Nasdaq-100 + liquidity filter** ✅
 - [x] **Timeframe** — **Intraday (60-min) + daily scan v1; daily/weekly swing v2** ✅
-- [ ] **Discord export path verified** — DiscordChatExporter tested against target v1 source server (TO DO)
+- [x] **Repo hosting** — **GitHub private** ✅ (2026-04-22)
+- [x] **Discord ingestion path** — pasted text (not DCE) ✅ (2026-04-22, supersedes prior DCE-verification task)
 
 ## 🧩 Deferrable Decisions
 
@@ -1478,11 +1485,13 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 ## 📌 Next Steps
 
 ### Immediate actions
-- [ ] **Phase 0 smoke test** — 2–4 hours on v1 source content before any code (see Phase 0)
-- [ ] Verify DiscordChatExporter against v1 source Discord server (throwaway account)
-- [ ] Gather course content inventory (what v1 source videos/PDFs/links/Discord channels are in scope)
-- [ ] Create `.env.example`, `.gitignore`, secrets template before any code
-- [ ] Decide on repo hosting (GitHub private, GitLab, local git only)
+- [x] ~~Phase 0 smoke test~~ — **skipped 2026-04-22** (see Pre-Phase-1 Decisions)
+- [x] ~~Verify DiscordChatExporter~~ — **superseded 2026-04-22**, pasted-text approach
+- [x] **Course content inventory** — captured in `content_inventory.md` (rough: ~12 core videos + ~10 adjacent, 10 min to ~3 hrs each, no PDFs, Discord via paste, course-platform text TBD)
+- [x] **`.env.example` + `.gitignore`** — done 2026-04-21
+- [x] **Repo hosting** — **GitHub private** (2026-04-22)
+- [x] ~~Clarify format of course-platform text content~~ — **resolved 2026-04-22:** user provides content directly; no platform-specific handler needed
+- [ ] `git init` + push to new GitHub private repo (before any Phase 1 code lands)
 
 ### Phase 1 kickoff checklist (after Phase 0 passes)
 - [ ] Set up repo structure (`handlers/`, `core/`, `cli.py`, `config.py`, `ARCHITECTURE.md`)
@@ -1491,7 +1500,8 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [ ] Add `.env` + `python-dotenv`, optional `gitleaks` pre-commit
 - [ ] Implement local video handler (v1 source videos — content in hand)
 - [ ] Implement YouTube handler
-- [ ] Implement Discord handler (after export path confirmed)
+- [ ] Implement Discord handler (pasted-text normaliser)
+- [ ] Implement course-platform text handler (paste-in; likely shares code with Discord handler)
 - [ ] Stubs for PDF / EPUB / article handlers
 
 ---

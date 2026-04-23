@@ -4,12 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current State: Pre-code planning phase
 
-As of 2026-04-21, this directory contains **no code and no git repo** — only the project plan and supporting docs:
+As of 2026-04-22, this directory contains pre-Phase-1 planning docs and scaffolding — no Python code yet. Repo: **`hencray/trading-wiki`** on GitHub (private). Files on disk:
 
 - **`PROJECT_PLAN.md`** — authoritative, consolidated plan. Single source of truth for all decisions, phases, scope, constraints, and deliverables. Always read this before proposing code or architecture changes.
 - **`brainstorm_edits_v1.md`** — historical patch document applied to produce `PROJECT_PLAN.md`. Reference only; do not treat as current guidance.
+- **`content_inventory.md`** — living inventory of v1 source content in scope for Phase 1 ingestion.
+- **`phase0_worksheet.md`** — optional Phase 0 smoke-test template (Phase 0 was skipped by user; file retained for possible later use).
+- **`.env.example`** — secrets template (real `.env` is gitignored).
+- **`.gitignore`** — standard Python + project-specific ignores.
 
-There is no build, lint, test, or run command because there is no code yet. Phase 0 (a 2–4 hour manual smoke test on course content) must complete before any Phase 1 scaffolding is built.
+There is no build, lint, test, or run command because there is no Python code yet.
 
 ## Project Shape
 
@@ -36,7 +40,9 @@ These are baked into `PROJECT_PLAN.md` but worth knowing up front:
 
 Phase 0 (smoke test) → 1 (ingestion) → 2 (extraction) → 3 (wiki) → 4 (strategy formalization) → 5 (backtest gauntlet) → 5½ (dashboard) → 6 (paper, ≥6 weeks) → 7 (live, $1–2k starter).
 
-When working on any phase, consult the corresponding section of `PROJECT_PLAN.md`. Do not skip phases or gates. In particular:
+**Phase 0 was skipped 2026-04-22 by user decision** — the risk that v1 source is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front. This skip does not generalise: the remaining phases and gates are still non-negotiable.
+
+When working on any phase, consult the corresponding section of `PROJECT_PLAN.md`. Do not skip the remaining phases or gates. In particular:
 
 - Phase 5 runs a **7-gate gauntlet** every time, every strategy — no exceptions.
 - Phase 6 has a **rules-based duration gate** (≥6 weeks, ≥40 trades, ≥1 market event survived, ≥1 killswitch triggered, ≥1 recovery verified, etc.) — not "when I feel ready."

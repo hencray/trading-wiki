@@ -26,14 +26,35 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
-# Testing
+# Testing / linting
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
 .coverage
+.coverage.*
 htmlcov/
+coverage.xml
 
 # Project data (per PROJECT_PLAN.md: SQLite + large ingested content)
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+data/
+content/
+transcripts/cache/
 logs/
 *.log
+
+# NOTE: backtest reports (./reports/) are intentionally NOT ignored —
+# per PROJECT_PLAN.md they are dated and immutable, committed as
+# part of the research trail.
+
+# Obsidian wiki (Phase 3) — ignore per-user workspace state only
+.obsidian/workspace
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
