@@ -1,8 +1,8 @@
 # Trading System Project Plan
 
 *Started: April 16, 2026*
-*Last updated: 2026-04-22*
-*Status: Phase 1 in progress — scaffolding + tooling + ContentRecord/schema/BaseHandler + structlog + Settings loader all landed. Next session picks up at task #4 (local video handler).*
+*Last updated: 2026-04-24*
+*Status: Phase 1 in progress (5/9 done) — scaffolding + tooling + core infra + LocalVideo + YouTube handlers all landed. Next session picks up at task #6 (Discord pasted-text handler).*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -222,7 +222,7 @@ trading-research/
 Raw source files stored content-addressed: `storage/{source_type}/{hash}.{ext}`
 Transcripts saved to both DB and disk as `.txt`/`.srt` for re-processing.
 
-**Status:** 🟠 In progress (2026-04-22) — Phase 0 skipped; foundation in place. ✅ Package layout (`trading_wiki/` + `tests/` + `migrations/`) · ✅ `pyproject.toml` + `uv` + `ruff` + `mypy --strict` + `pytest` + `pre-commit` + GitHub Actions CI · ✅ `ContentRecord`/`Segment`/`BaseHandler` (Pydantic v2, `extra="forbid"`) · ✅ SQLite schema + `yoyo-migrations` applier + roundtrip helpers · ✅ `structlog` JSON logging · ✅ Pydantic-settings `Settings` loader. 26 tests at 97% coverage. Handlers (local video → YouTube → Discord → course-platform → stubs) are next.
+**Status:** 🟠 In progress (2026-04-24) — Phase 0 skipped; foundation + first two handlers in place. ✅ Package layout · ✅ Tooling (`uv` + `pyproject.toml` + `ruff` + `mypy --strict` + `pytest` + `pre-commit` + GitHub Actions CI with ffmpeg) · ✅ `ContentRecord`/`Segment`/`BaseHandler` (Pydantic v2, `extra="forbid"`) · ✅ SQLite schema + `yoyo-migrations` applier + roundtrip helpers · ✅ `structlog` JSON logging · ✅ Pydantic-settings `Settings` loader · ✅ `core/storage.py` (SHA-256 + sharded paths) · ✅ `core/transcribe.py` (Whisper API wrapper, injected client) · ✅ `core/audio.py` (ffmpeg subprocess → 32 kbps mono mp3) · ✅ `core/youtube.py` (yt-dlp wrapper, injected factory) · ✅ `LocalVideoHandler` · ✅ `YoutubeHandler`. **58 tests at 98% coverage.** Discord/course-platform/PDF-EPUB-article handlers are next.
 
 ---
 
@@ -1356,6 +1356,14 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **Migrations:** `yoyo-migrations` (numbered SQL files in `migrations/`) chosen over Alembic — lightweight, no SQLAlchemy coupling, applier is a 10-line wrapper in `core/db.py`.
 - **Settings loader:** `pydantic-settings` `Settings` class — `SecretStr | None` for all API keys (redacted in repr/logs, missing values explicit rather than blank strings), `Literal[...]` for `log_level` so typos raise immediately, `Path` for `db_path` and `content_dir`. All keys optional and default to `None` so the project remains runnable without credentials for systems not yet built; calling code validates at the use site.
 - **`.env.example` updated** (2026-04-22): `DISCORD_USER_TOKEN` block removed. Pasted-text Discord ingestion needs no env vars.
+- **Handler architecture** (resolved 2026-04-22 with task #4): handlers are thin orchestration on top of `core/` building blocks. The pattern is "core has the reusable mechanics; handlers compose them per source type." For media handlers, the mechanics are storage + audio + transcribe; for paste-text handlers, just file-read.
+- **Content-addressed storage** (`core/storage.py`, 2026-04-22): SHA-256 of file contents → `{storage}/{type}/{sha[:2]}/{sha}{ext}`. Sharded subdir keeps directory listings sane with thousands of files. `store_file` is idempotent — re-storing the same file is a no-op.
+- **Whisper wrapper** (`core/transcribe.py`, 2026-04-22): uses `verbose_json` with `timestamp_granularities=["segment"]` so we get `Segment` objects with start/end seconds back, not just plain text. The OpenAI client is injected so tests pass a `MagicMock` and production callers construct one from `Settings.openai_api_key`.
+- **Audio extraction** (`core/audio.py`, 2026-04-22): ffmpeg subprocess → mono 16 kHz **32 kbps** mp3. At that bitrate ~3 hours of audio fits comfortably under Whisper's 25 MiB upload limit. CI installs ffmpeg via `apt-get` so audio + handler tests actually run on the GitHub runner instead of being skipped.
+- **`LocalVideoHandler`** (2026-04-22): `source_id` = SHA-256 of the video; original video stored content-addressed under `storage/local_video/`; extracted audio cached at `content/local_video/audio/{sha}.mp3` so re-ingesting the same file skips ffmpeg. `metadata` records source/stored/audio paths for traceability.
+- **`YoutubeHandler`** (2026-04-24): `source_id` = YouTube video ID (canonical, no SHA needed since YouTube IDs are already unique). Audio cached at `content/youtube/audio/{video_id}.mp3`. URL recognition via regex covering `youtube.com/watch?v=`, `youtu.be/`, `m.youtube.com`, http or https. Original video file is **not stored** locally — YouTube hosts it and we only need the audio for transcription. `yt-dlp`'s `YoutubeDL` class is injected as `ydl_factory` so tests use a `MagicMock` context manager and production code uses the real class.
+- **YouTube subtitle fast-path deferred** (2026-04-24): the handler currently always uses Whisper. When subtitles (human-made VTT/SRT, not auto-captions) are available, skipping Whisper would save API cost — meaningful for long v1 source videos. Add this as a follow-up; current handler works, just isn't cost-optimal.
+- **`StrictModel` is public** (renamed from `_StrictModel` 2026-04-22 with task #4): `TranscriptionResult` and `YoutubeMetadata` reuse the `extra="forbid"` config without redeclaring it. Cross-module model imports are fine — `handlers/base.py` is the canonical home for shared model bases, `core/` modules import from there.
 
 ### Phase 2
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
@@ -1510,9 +1518,9 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] ~~Build `ContentRecord` + SQLite schema + base handler interface~~ — done 2026-04-22, TDD'd
 - [x] ~~Add `structlog` JSON logging~~ — done 2026-04-22 (`trading_wiki/core/logging.py`)
 - [x] ~~Add `.env` + `python-dotenv`, optional `gitleaks` pre-commit~~ — done 2026-04-22 (pydantic-settings `Settings`; gitleaks runs in pre-commit + CI)
-- [ ] Implement local video handler (v1 source videos — content in hand) ← **next**
-- [ ] Implement YouTube handler
-- [ ] Implement Discord handler (pasted-text normaliser)
+- [x] ~~Implement local video handler~~ — done 2026-04-22 (`LocalVideoHandler` + `core/storage.py` + `core/transcribe.py` + `core/audio.py`; ffmpeg subprocess + Whisper API)
+- [x] ~~Implement YouTube handler~~ — done 2026-04-24 (`YoutubeHandler` + `core/youtube.py`; yt-dlp wrapper, video_id as source_id, audio cached at `content/youtube/audio/{video_id}.mp3`)
+- [ ] Implement Discord handler (pasted-text normaliser) ← **next** — design picked: `discord:<path>` source prefix; reads file, stores `raw_text` verbatim; no message parsing in v1 (defer to Phase 2 LLM extraction)
 - [ ] Implement course-platform text handler (paste-in; likely shares code with Discord handler)
 - [ ] Stubs for PDF / EPUB / article handlers
 
