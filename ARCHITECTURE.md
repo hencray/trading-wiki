@@ -35,18 +35,22 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 
 | Path | Role |
 |---|---|
-| `trading_wiki/handlers/base.py` | `ContentRecord` + `BaseHandler` interface |
+| `trading_wiki/handlers/base.py` | `ContentRecord` + `Segment` + `StrictModel` + `BaseHandler` interface |
 | `trading_wiki/handlers/local_video.py` | local video → ffmpeg audio → Whisper |
-| `trading_wiki/handlers/youtube.py` | YouTube → yt-dlp → existing subs or Whisper |
-| `trading_wiki/handlers/discord.py` | pasted-text normaliser (author / timestamp / thread heuristics) |
-| `trading_wiki/handlers/{pdf,epub,article}.py` | stubs — implement post-Phase-1 |
+| `trading_wiki/handlers/youtube.py` | YouTube → yt-dlp → Whisper (subtitle fast-path deferred) |
+| `trading_wiki/handlers/discord.py` | `discord:<path>` → pasted-text store-and-record (no parsing in v1) |
+| `trading_wiki/handlers/course_platform.py` | `course:<path>` → pasted-text store-and-record (Tier 1 source) |
+| `trading_wiki/handlers/{pdf,epub,article}.py` | stubs — `can_handle` works, `ingest` raises `NotImplementedError` |
 | `trading_wiki/core/db.py` | SQLite schema + migration applier (yoyo-migrations) |
 | `trading_wiki/core/storage.py` | content-addressed file storage helpers |
-| `trading_wiki/core/transcribe.py` | Whisper API wrapper |
+| `trading_wiki/core/audio.py` | ffmpeg subprocess → 32 kbps mono mp3 |
+| `trading_wiki/core/transcribe.py` | Whisper API wrapper (segment-granularity verbose_json) |
+| `trading_wiki/core/youtube.py` | yt-dlp wrapper — metadata fetch + audio download |
+| `trading_wiki/core/pasted_text.py` | shared mechanic: read text file, store content-addressed, return `ContentRecord` |
 | `trading_wiki/core/logging.py` | `structlog` JSON setup |
-| `trading_wiki/core/secrets.py` | `.env` loader + validators |
-| `trading_wiki/cli.py` | `ingest <url-or-file>` dispatcher; `trading-wiki` console script entry |
-| `trading_wiki/config.py` | shared paths, model names, tunables |
+| `trading_wiki/core/secrets.py` | pydantic-settings `Settings` (`SecretStr` for keys, `Path` for dirs) |
+| `trading_wiki/cli.py` | `ingest <url-or-file>` dispatcher; `trading-wiki` console script entry (Phase 2 prep) |
+| `trading_wiki/config.py` | shared paths, model names, tunables (empty until Phase 2 needs it) |
 | `migrations/` | numbered `.sql` files applied by `yoyo` |
 | `tests/` | pytest suite; mirrors `trading_wiki/` package layout |
 

@@ -1,8 +1,8 @@
 # Trading System Project Plan
 
 *Started: April 16, 2026*
-*Last updated: 2026-04-24*
-*Status: Phase 1 in progress (5/9 done) — scaffolding + tooling + core infra + LocalVideo + YouTube handlers all landed. Next session picks up at task #6 (Discord pasted-text handler).*
+*Last updated: 2026-04-25*
+*Status: **Phase 1 complete (9/9).** All v1 handlers landed (LocalVideo, YouTube, Discord, course-platform, plus PDF/EPUB/article stubs). 93 tests at 98% coverage. CLI dispatcher (`cli.py`) and shared `config.py` remain as Phase-2-prep follow-ups, not Phase 1 gates. Next session opens Phase 2 (extraction).*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -222,7 +222,7 @@ trading-research/
 Raw source files stored content-addressed: `storage/{source_type}/{hash}.{ext}`
 Transcripts saved to both DB and disk as `.txt`/`.srt` for re-processing.
 
-**Status:** 🟠 In progress (2026-04-24) — Phase 0 skipped; foundation + first two handlers in place. ✅ Package layout · ✅ Tooling (`uv` + `pyproject.toml` + `ruff` + `mypy --strict` + `pytest` + `pre-commit` + GitHub Actions CI with ffmpeg) · ✅ `ContentRecord`/`Segment`/`BaseHandler` (Pydantic v2, `extra="forbid"`) · ✅ SQLite schema + `yoyo-migrations` applier + roundtrip helpers · ✅ `structlog` JSON logging · ✅ Pydantic-settings `Settings` loader · ✅ `core/storage.py` (SHA-256 + sharded paths) · ✅ `core/transcribe.py` (Whisper API wrapper, injected client) · ✅ `core/audio.py` (ffmpeg subprocess → 32 kbps mono mp3) · ✅ `core/youtube.py` (yt-dlp wrapper, injected factory) · ✅ `LocalVideoHandler` · ✅ `YoutubeHandler`. **58 tests at 98% coverage.** Discord/course-platform/PDF-EPUB-article handlers are next.
+**Status:** 🟢 Complete (2026-04-25) — Phase 0 skipped; all v1 handlers landed. ✅ Package layout · ✅ Tooling (`uv` + `pyproject.toml` + `ruff` + `mypy --strict` + `pytest` + `pre-commit` + GitHub Actions CI with ffmpeg) · ✅ `ContentRecord`/`Segment`/`BaseHandler` (Pydantic v2, `extra="forbid"`) · ✅ SQLite schema + `yoyo-migrations` applier + roundtrip helpers · ✅ `structlog` JSON logging · ✅ Pydantic-settings `Settings` loader · ✅ `core/storage.py` (SHA-256 + sharded paths) · ✅ `core/transcribe.py` (Whisper API wrapper, injected client) · ✅ `core/audio.py` (ffmpeg subprocess → 32 kbps mono mp3) · ✅ `core/youtube.py` (yt-dlp wrapper, injected factory) · ✅ `core/pasted_text.py` (shared text-paste mechanic) · ✅ `LocalVideoHandler` · ✅ `YoutubeHandler` · ✅ `DiscordHandler` (pasted-text, `discord:<path>`) · ✅ `CoursePlatformHandler` (pasted-text, `course:<path>`) · ✅ `PdfHandler` / `EpubHandler` / `ArticleHandler` stubs. **93 tests at 98% coverage.** Phase-2-prep open items (not Phase 1 gates): CLI dispatcher (`cli.py` still raises `NotImplementedError`), shared `config.py` (still empty).
 
 ---
 
@@ -1364,6 +1364,10 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **`YoutubeHandler`** (2026-04-24): `source_id` = YouTube video ID (canonical, no SHA needed since YouTube IDs are already unique). Audio cached at `content/youtube/audio/{video_id}.mp3`. URL recognition via regex covering `youtube.com/watch?v=`, `youtu.be/`, `m.youtube.com`, http or https. Original video file is **not stored** locally — YouTube hosts it and we only need the audio for transcription. `yt-dlp`'s `YoutubeDL` class is injected as `ydl_factory` so tests use a `MagicMock` context manager and production code uses the real class.
 - **YouTube subtitle fast-path deferred** (2026-04-24): the handler currently always uses Whisper. When subtitles (human-made VTT/SRT, not auto-captions) are available, skipping Whisper would save API cost — meaningful for long v1 source videos. Add this as a follow-up; current handler works, just isn't cost-optimal.
 - **`StrictModel` is public** (renamed from `_StrictModel` 2026-04-22 with task #4): `TranscriptionResult` and `YoutubeMetadata` reuse the `extra="forbid"` config without redeclaring it. Cross-module model imports are fine — `handlers/base.py` is the canonical home for shared model bases, `core/` modules import from there.
+- **`core/pasted_text.py`** (2026-04-25): factored out as the shared mechanic backing both `DiscordHandler` and `CoursePlatformHandler`. `ingest_pasted_text(path, source_type, storage_dir) -> ContentRecord` reads the file as UTF-8, content-addressed-stores it under the caller's `source_type`, and packages a `ContentRecord` with `raw_text` = file contents verbatim. No message parsing — authors, timestamps, threads, replies are deferred to Phase 2 LLM extraction. Reason it's in `core/` not `handlers/`: matches the project's pattern that `core/` owns reusable mechanics and handlers compose them per source type. Keeps the two handler classes ~25 lines each.
+- **`DiscordHandler`** (2026-04-25): source format `discord:<path>`. Strips the prefix and delegates to `ingest_pasted_text` with `source_type="discord"`. No env vars needed (the 2026-04-22 pasted-text decision deleted `DISCORD_USER_TOKEN`).
+- **`CoursePlatformHandler`** (2026-04-25): source format `course:<path>`. Same shape as `DiscordHandler` but with `source_type="course_platform"` so credibility tier (Tier 1 in v1 source) and provenance stay distinct downstream. Splitting into two handler classes (rather than one parameterised handler) keeps the dispatch surface obvious — each source type appears in its own file in `handlers/` per the existing convention.
+- **PDF / EPUB / article stubs** (2026-04-25): `PdfHandler` / `EpubHandler` / `ArticleHandler` implement the `BaseHandler` interface. `can_handle` returns the right boolean (`.pdf`, `.epub`, `http(s)://` respectively); `ingest` raises `NotImplementedError("… deferred to post-Phase-1")`. Excluded from coverage by the existing `raise NotImplementedError` rule in `pyproject.toml`. `ArticleHandler.can_handle` is intentionally broad — overlap with `YoutubeHandler` on YouTube URLs is the CLI dispatcher's concern, not the handler's.
 
 ### Phase 2
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
@@ -1520,9 +1524,13 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] ~~Add `.env` + `python-dotenv`, optional `gitleaks` pre-commit~~ — done 2026-04-22 (pydantic-settings `Settings`; gitleaks runs in pre-commit + CI)
 - [x] ~~Implement local video handler~~ — done 2026-04-22 (`LocalVideoHandler` + `core/storage.py` + `core/transcribe.py` + `core/audio.py`; ffmpeg subprocess + Whisper API)
 - [x] ~~Implement YouTube handler~~ — done 2026-04-24 (`YoutubeHandler` + `core/youtube.py`; yt-dlp wrapper, video_id as source_id, audio cached at `content/youtube/audio/{video_id}.mp3`)
-- [ ] Implement Discord handler (pasted-text normaliser) ← **next** — design picked: `discord:<path>` source prefix; reads file, stores `raw_text` verbatim; no message parsing in v1 (defer to Phase 2 LLM extraction)
-- [ ] Implement course-platform text handler (paste-in; likely shares code with Discord handler)
-- [ ] Stubs for PDF / EPUB / article handlers
+- [x] ~~Implement Discord handler (pasted-text normaliser)~~ — done 2026-04-25 (`DiscordHandler` + `core/pasted_text.py`; `discord:<path>` prefix, content-addressed storage, no message parsing in v1)
+- [x] ~~Implement course-platform text handler~~ — done 2026-04-25 (`CoursePlatformHandler`; `course:<path>` prefix, reuses `core/pasted_text.py` with `source_type="course_platform"`)
+- [x] ~~Stubs for PDF / EPUB / article handlers~~ — done 2026-04-25 (`PdfHandler` / `EpubHandler` / `ArticleHandler`; `can_handle` matches extension/scheme, `ingest` raises `NotImplementedError`)
+
+### Phase 1 follow-ups (Phase 2 prep, not Phase 1 gates)
+- [ ] Implement CLI dispatcher (`trading_wiki/cli.py`) — `trading-wiki ingest <url-or-file>` walks handlers in priority order, returns first `can_handle=True`. Decide handler precedence (specific → generic) when wiring; at minimum YouTube before article so HTTPS YouTube URLs route correctly.
+- [ ] Populate `trading_wiki/config.py` — currently empty. Plan calls for "shared paths, model names, tunables." Will likely host model IDs and storage path constants once Phase 2 starts using them.
 
 ---
 
