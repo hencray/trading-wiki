@@ -53,7 +53,8 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/config.py` | shared paths, model names, tunables (`MODEL_PASS1`/`MODEL_PASS2`, `PROMPT_VERSION_PASS1`/`PROMPT_VERSION_PASS2_*`, prompt paths, `PASS2_LABEL_ROUTES`) |
 | `trading_wiki/core/llm.py` | Anthropic SDK wrapper: schema-via-tool-use call, JSON/schema retry, usage logging |
 | `trading_wiki/extractors/pass1.py` | Phase 2A Pass 1: transcript builder, coverage validator, `extract()` flow with idempotency and coverage retry, `python -m` entry point |
-| `trading_wiki/extractors/pass2/__init__.py` | Phase 2A Pass 2 dispatcher: routes Pass 1 chunks to per-type entity extractors via `PASS2_LABEL_ROUTES`; per-chunk resilience; `python -m` entry |
+| `trading_wiki/extractors/pass2/__init__.py` | Phase 2A Pass 2 dispatcher: routes Pass 1 chunks to per-type entity extractors via `PASS2_LABEL_ROUTES`; per-chunk resilience; argparse `main()` |
+| `trading_wiki/extractors/pass2/__main__.py` | `python -m trading_wiki.extractors.pass2 --content-id N` entry; delegates to `pass2.main()` |
 | `trading_wiki/extractors/pass2/trade_example.py` | TradeExample Pydantic schemas + `extract_trade_examples_for_chunk` |
 | `trading_wiki/extractors/pass2/concept.py` | Concept Pydantic schemas + `extract_concepts_for_chunk` |
 | `prompts/pass1.md` | Pass 1 system prompt; version-stamped via `PROMPT_VERSION_PASS1` |

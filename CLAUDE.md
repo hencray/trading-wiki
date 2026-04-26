@@ -2,9 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current State: Phase 1 complete, Phase 2 (extraction) is next
+## Current State: Phase 2A v0.2 shipped; Phase 2A v0.3 next
 
-As of 2026-04-25, Phase 1 (ingestion pipeline) is done and committed. Repo: **`hencray/trading-wiki`** on GitHub (private). 93 tests at 98% coverage.
+As of 2026-04-26, Phase 1 (ingestion) and Phase 2A v0.1 + v0.2 (Pass 1 chunk + classify, Pass 2 TradeExample + Concept extraction) are done and committed. Corpus: 8 trade_examples + 48 concepts across 9 routed chunks of two Tier 1 videos at locked prompt versions `pass1-v1`, `pass2-trade-example-v1`, `pass2-concept-v1`. Repo: **`hencray/trading-wiki`** on GitHub (private). 180 tests at 98% coverage.
+
+**Next slice — Phase 2A v0.3:** Strategy/Setup/Rule/MarketCondition entity extraction (cross-chunk, needs Pass 3 entity-resolution scaffolding) + Concept dedup + the v0.2 prompt-iteration backlog (see `PROJECT_PLAN.md` Phase 2 decisions: silent price rescaling, trade-attribution semantics, concept-vs-metaphor classification, term-naming bias, synonym dedup, Pass 1 ↔ Pass 2 contamination check). Trigger for the prompt-iteration work: revisit once more Tier 1 sources are ingested — n=2 videos is too small to commit to prompt rewrites.
 
 What lives where:
 
