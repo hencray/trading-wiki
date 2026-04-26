@@ -12,6 +12,7 @@ from trading_wiki.handlers.base import ContentRecord, Segment
 
 if TYPE_CHECKING:
     from trading_wiki.extractors.pass1 import Pass1Output
+    from trading_wiki.extractors.pass2.concept import ConceptOutput
     from trading_wiki.extractors.pass2.trade_example import TradeExampleOutput
 
 _MIGRATIONS_DIR = Path(__file__).parent.parent.parent / "migrations"
@@ -302,3 +303,62 @@ def load_trade_examples_for_version(
             (source_chunk_id, prompt_version),
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def save_concepts(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+    output: "ConceptOutput",
+) -> None:
+    """Write all entities from a ConceptOutput in a single transaction.
+
+    JSON-encodes ``related_terms`` on the way in. Raises sqlite3.IntegrityError
+    on CHECK / FK violations; the transaction is rolled back so partial writes
+    don't land.
+    """
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        for entity in output.entities:
+            data = entity.model_dump()
+            conn.execute(
+                """
+                INSERT INTO concepts (
+                    source_chunk_id, term, definition, related_terms,
+                    confidence, prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_chunk_id,
+                    data["term"],
+                    data["definition"],
+                    json.dumps(data["related_terms"]),
+                    data["confidence"],
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_concepts_for_version(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return Concept rows for ``(source_chunk_id, prompt_version)``.
+
+    JSON-decodes ``related_terms`` so callers get a Python list back.
+    """
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM concepts WHERE source_chunk_id = ? AND prompt_version = ? ORDER BY id",
+            (source_chunk_id, prompt_version),
+        ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["related_terms"] = json.loads(row_dict["related_terms"])
+            result.append(row_dict)
+        return result

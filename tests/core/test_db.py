@@ -681,3 +681,171 @@ def test_save_trade_examples_rolls_back_on_error(tmp_path):
         prompt_version="pass2-trade-example-v1",
     )
     assert rows == []
+
+
+def test_save_and_load_concepts(tmp_path):
+    """save_concepts writes all rows in one transaction; loader returns related_terms as list."""
+    from trading_wiki.core.db import (
+        load_concepts_for_version,
+        save_chunks,
+        save_concepts,
+    )
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+    from trading_wiki.extractors.pass2.concept import Concept, ConceptOutput
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="x")],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="concept",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+    out = ConceptOutput(
+        entities=[
+            Concept(
+                term="pivot point",
+                definition="Average of prior period's high, low, and close.",
+                related_terms=["resistance", "support"],
+                confidence="high",
+            ),
+            Concept(
+                term="pullback hold",
+                definition="Setup where price reclaims pivot in the first hour.",
+                related_terms=[],
+                confidence="medium",
+            ),
+        ]
+    )
+    save_concepts(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-concept-v1",
+        output=out,
+    )
+
+    rows = load_concepts_for_version(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-concept-v1",
+    )
+    assert len(rows) == 2
+    pp = next(r for r in rows if r["term"] == "pivot point")
+    # related_terms is JSON-decoded into a Python list on read.
+    assert pp["related_terms"] == ["resistance", "support"]
+    pre = next(r for r in rows if r["term"] == "pullback hold")
+    assert pre["related_terms"] == []
+
+    # Different prompt version → empty.
+    assert (
+        load_concepts_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-concept-v2",
+        )
+        == []
+    )
+
+
+def test_save_concepts_rolls_back_on_error(tmp_path):
+    """If any insert fails (CHECK violation), no concepts for that call should land."""
+    from unittest.mock import patch
+
+    from trading_wiki.core.db import (
+        load_concepts_for_version,
+        save_chunks,
+        save_concepts,
+    )
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+    from trading_wiki.extractors.pass2.concept import Concept, ConceptOutput
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="x")],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="concept",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+    good = Concept(
+        term="pivot",
+        definition="A pivot is a level.",
+        confidence="high",
+    )
+    out = ConceptOutput(entities=[good, good])
+
+    real_dump = Concept.model_dump
+    call_count = {"n": 0}
+
+    def flaky_dump(self, **kwargs):
+        result = real_dump(self, **kwargs)
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            result["confidence"] = "mid"  # rejected by DB CHECK
+        return result
+
+    with (
+        patch.object(Concept, "model_dump", flaky_dump),
+        pytest.raises(sqlite3.IntegrityError),
+    ):
+        save_concepts(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-concept-v1",
+            output=out,
+        )
+
+    rows = load_concepts_for_version(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-concept-v1",
+    )
+    assert rows == []
