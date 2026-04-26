@@ -2,7 +2,7 @@
 
 *Started: April 16, 2026*
 *Last updated: 2026-04-25*
-*Status: **Phase 1 complete (9/9).** All v1 handlers landed (LocalVideo, YouTube, Discord, course-platform, plus PDF/EPUB/article stubs). 93 tests at 98% coverage. CLI dispatcher (`cli.py`) and shared `config.py` remain as Phase-2-prep follow-ups, not Phase 1 gates. Next session opens Phase 2 (extraction).*
+*Status: **Phase 1 complete (9/9), Phase 2A v0.1 in progress.** Pass 1 (chunk + classify) implementation landed: `core/llm.py`, `extractors/pass1.py`, migration 0002 (`chunks` table), prompts/pass1.md, populated `config.py`. 129 unit tests at 98% coverage, sub-2.5s. Integration test is opt-in (`pytest -m integration`); v0.1 ships when a real v1 source video is transcribed and the chunks pass the §2(5) human-review bar. CLI dispatcher remains a Phase-2-prep follow-up, not a v0.1 gate.*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -443,7 +443,7 @@ Every extracted fact keeps: `content_id`, `timestamp`/location, `excerpt`. So we
 
 **Storage:** SQLite + `sqlite-vec` for embeddings (one-file simplicity). Move to Postgres if graph scale demands.
 
-**Status:** 🟡 In planning
+**Status:** 🟠 In progress (Phase 2A v0.1 — Pass 1)
 
 ---
 
@@ -1370,6 +1370,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **PDF / EPUB / article stubs** (2026-04-25): `PdfHandler` / `EpubHandler` / `ArticleHandler` implement the `BaseHandler` interface. `can_handle` returns the right boolean (`.pdf`, `.epub`, `http(s)://` respectively); `ingest` raises `NotImplementedError("… deferred to post-Phase-1")`. Excluded from coverage by the existing `raise NotImplementedError` rule in `pyproject.toml`. `ArticleHandler.can_handle` is intentionally broad — overlap with `YoutubeHandler` on YouTube URLs is the CLI dispatcher's concern, not the handler's.
 
 ### Phase 2
+- **Phase 2A v0.1 = Pass 1 only, one Tier 1 video** (2026-04-25). Vertical slice: chunk + classify a single v1 source video with Sonnet 4.6, write to a new `chunks` table, human-review the output before committing to Pass 2 schemas. Embeddings, entity extraction, resolution, relationships, review UI, and chart pipeline all explicitly deferred to later slices. Implementation landed: `core/llm.py` (schema-via-tool-use Anthropic SDK wrapper), `extractors/pass1.py` (transcript builder, coverage validator, idempotent `extract()`), migration `0002-chunks.sql`, `prompts/pass1.md` (version-stamped via `PROMPT_VERSION_PASS1`). Spec at `docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md`; plan at `docs/superpowers/plans/2026-04-25-phase-2a-pass1.md`. v0.1 isn't shipped until a real v1 source video is transcribed and the resulting chunks pass the §2(5) human-review bar; chunks may need 1–2 prompt iterations (bump `PROMPT_VERSION_PASS1` per iteration) before they're usable.
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
 - **Extraction strategy:** Extract everything, tag low-confidence for review (not aggressive filtering)
 - **Architecture:** Multi-pass pipeline (Classify → Extract → Resolve → Relate)
@@ -1530,7 +1531,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 
 ### Phase 1 follow-ups (Phase 2 prep, not Phase 1 gates)
 - [ ] Implement CLI dispatcher (`trading_wiki/cli.py`) — `trading-wiki ingest <url-or-file>` walks handlers in priority order, returns first `can_handle=True`. Decide handler precedence (specific → generic) when wiring; at minimum YouTube before article so HTTPS YouTube URLs route correctly.
-- [ ] Populate `trading_wiki/config.py` — currently empty. Plan calls for "shared paths, model names, tunables." Will likely host model IDs and storage path constants once Phase 2 starts using them.
+- [x] ~~Populate `trading_wiki/config.py`~~ — done 2026-04-25 as part of Phase 2A v0.1 (`MODEL_PASS1`, `PROMPT_VERSION_PASS1`, `PROMPT_PASS1_PATH`).
 
 ---
 

@@ -50,9 +50,12 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/core/logging.py` | `structlog` JSON setup |
 | `trading_wiki/core/secrets.py` | pydantic-settings `Settings` (`SecretStr` for keys, `Path` for dirs) |
 | `trading_wiki/cli.py` | `ingest <url-or-file>` dispatcher; `trading-wiki` console script entry (Phase 2 prep) |
-| `trading_wiki/config.py` | shared paths, model names, tunables (empty until Phase 2 needs it) |
-| `migrations/` | numbered `.sql` files applied by `yoyo` |
-| `tests/` | pytest suite; mirrors `trading_wiki/` package layout |
+| `trading_wiki/config.py` | shared paths, model names, tunables (`MODEL_PASS1`, `PROMPT_VERSION_PASS1`, `PROMPT_PASS1_PATH`) |
+| `trading_wiki/core/llm.py` | Anthropic SDK wrapper: schema-via-tool-use call, JSON/schema retry, usage logging |
+| `trading_wiki/extractors/pass1.py` | Phase 2A Pass 1: transcript builder, coverage validator, `extract()` flow with idempotency and coverage retry, `python -m` entry point |
+| `prompts/pass1.md` | Pass 1 system prompt; version-stamped via `PROMPT_VERSION_PASS1` |
+| `migrations/` | numbered `.sql` files applied by `yoyo` (0001 = content + segments, 0002 = chunks) |
+| `tests/` | pytest suite; mirrors `trading_wiki/` package layout. `tests/fixtures/` holds shared synthetic transcripts. Integration tests are opt-in via `pytest -m integration` |
 
 ## Discipline (from CLAUDE.md / PROJECT_PLAN.md)
 
