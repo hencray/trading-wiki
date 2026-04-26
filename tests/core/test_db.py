@@ -2,6 +2,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from trading_wiki.core.db import apply_migrations, load_content_record, save_content_record
 from trading_wiki.handlers.base import ContentRecord, Segment
 
@@ -59,3 +61,59 @@ def test_load_content_record_returns_none_when_missing(tmp_path):
     apply_migrations(db_path)
     loaded = load_content_record(db_path, source_type="x", source_id="missing")
     assert loaded is None
+
+
+def test_migration_0002_creates_chunks_table(tmp_path):
+    """0002 creates a chunks table with the columns and CHECK constraints from spec §5.1."""
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(chunks)").fetchall()}
+        assert cols == {
+            "id",
+            "content_id",
+            "seq",
+            "start_seg_seq",
+            "end_seg_seq",
+            "start_seconds",
+            "end_seconds",
+            "label",
+            "confidence",
+            "summary",
+            "text",
+            "prompt_version",
+            "created_at",
+        }
+
+        conn.execute(
+            "INSERT INTO content "
+            "(source_type, source_id, title, created_at, ingested_at, raw_text) "
+            "VALUES ('test', 'a', 't', '2026-01-01', '2026-01-01', 'r')"
+        )
+        content_id = conn.execute("SELECT id FROM content").fetchone()[0]
+
+        bad_label = (
+            "INSERT INTO chunks (content_id, seq, start_seg_seq, end_seg_seq, "
+            "label, confidence, summary, text, prompt_version, created_at) "
+            "VALUES (?, 0, 0, 0, 'not_a_label', 'high', 's', 't', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_label, (content_id,))
+
+        bad_conf = (
+            "INSERT INTO chunks (content_id, seq, start_seg_seq, end_seg_seq, "
+            "label, confidence, summary, text, prompt_version, created_at) "
+            "VALUES (?, 0, 0, 0, 'noise', 'maybe', 's', 't', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_conf, (content_id,))
+
+        good = (
+            "INSERT INTO chunks (content_id, seq, start_seg_seq, end_seg_seq, "
+            "label, confidence, summary, text, prompt_version, created_at) "
+            "VALUES (?, 0, 0, 0, 'noise', 'high', 's', 't', 'pass1-v1', '2026-01-01')"
+        )
+        conn.execute(good, (content_id,))
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(good, (content_id,))
