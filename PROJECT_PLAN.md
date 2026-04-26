@@ -1429,7 +1429,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **Feature store:** Deferred but budgeted for mid-Phase-5 (when 3+ strategies share indicators)
 - **Observability:** Structured logging from Phase 1, metrics by Phase 5
 - **Secrets management:** `.env` + gitleaks from day 1
-- **Repo hosting:** **GitHub private** (decided 2026-04-22). Videos stay local (`.gitignore`d under `content/`); everything else — code, transcripts, specs, dated backtest reports, wiki markdown — is committed so remote Claude Code sessions and Claude iOS can work against GitHub.
+- **Repo hosting:** **GitHub public, MIT** (flipped from private 2026-04-26 with full source-identifier redaction; original-private decision was 2026-04-22). Videos stay local (`.gitignore`d under `content/`); ingested transcripts, the SQLite DB, hand-reviews, per-slice plans/specs, and the filled `content_inventory.md` all stay local too. Everything framework-level — code, prompts, migrations, schema, this plan, `ARCHITECTURE.md`, `CLAUDE.md` — is committed so remote Claude Code sessions and Claude iOS can work against GitHub.
 - **Cloud-portability seam:** ingestion (raw video → transcript) is the only strictly-local step. Phase 2 onward must run against committed transcripts + a migration-defined SQLite rebuildable from them — never require access to the raw video files.
 - **ARCHITECTURE.md:** Maintain living architecture doc alongside plan
 
@@ -1497,7 +1497,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] **Specific course identity** — **the v1 source content** ✅
 - [x] **Asset class** — **Stocks only, QQQ/Nasdaq-100 + liquidity filter** ✅
 - [x] **Timeframe** — **Intraday (60-min) + daily scan v1; daily/weekly swing v2** ✅
-- [x] **Repo hosting** — **GitHub private** ✅ (2026-04-22)
+- [x] **Repo hosting** — **GitHub public, MIT** ✅ (flipped 2026-04-26 with redaction; original private 2026-04-22)
 - [x] **Discord ingestion path** — pasted text (not DCE) ✅ (2026-04-22, supersedes prior DCE-verification task)
 
 ## 🧩 Deferrable Decisions
@@ -1516,7 +1516,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - [x] ~~Verify DiscordChatExporter~~ — **superseded 2026-04-22**, pasted-text approach
 - [x] **Course content inventory** — captured locally in `content_inventory.md` (gitignored; template at `content_inventory.example.md`); rough: ~12 core videos + ~10 adjacent, 10 min to ~3 hrs each, no PDFs, Discord via paste, course-platform text TBD
 - [x] **`.env.example` + `.gitignore`** — done 2026-04-21
-- [x] **Repo hosting** — **GitHub private** (2026-04-22)
+- [x] **Repo hosting** — **GitHub public, MIT** (flipped 2026-04-26 with redaction; original private 2026-04-22)
 - [x] ~~Clarify format of course-platform text content~~ — **resolved 2026-04-22:** user provides content directly; no platform-specific handler needed
 - [x] ~~`git init` + push to new GitHub private repo~~ — **resolved 2026-04-22:** repo `hencray/trading-wiki` already existed from 2026-04-21; today's pre-Phase-1 work committed as `70d13b1` and pushed to `origin/main`.
 

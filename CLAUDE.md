@@ -106,3 +106,15 @@ Obsidian (Phase 3 wiki browsing) is a tool the user runs locally, not a Python d
 ## Cloud-portability seam (don't break this)
 
 Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 2 onward must run against committed transcripts plus a migration-defined SQLite rebuildable from them. No phase later than 1 may require access to raw video files. This is what lets remote Claude Code / Claude iOS sessions work against the GitHub repo. Raw videos stay local under `content/` (gitignored).
+
+## Public-repo redaction policy
+
+This repo is **public** (MIT). The user's actual ingested content sources (course brand/author names, distinctive coined terms from those sources, specific extracted entities like ticker-tagged trade examples or hand-review findings) must NEVER appear in tracked files. Use generic placeholders: "v1 source content", "v1 author", invented setup names. Specifics are derivable for the user from their local DB and gitignored notes; they don't belong in the framework.
+
+What stays local-only (gitignored):
+- `storage/`, `content/`, `data/research.db`, `transcripts/cache/` — raw ingested content + extracted DB
+- `docs/superpowers/reviews/` — hand-reviews of extracted content (always reference real source text)
+- `docs/superpowers/plans/` and `docs/superpowers/specs/` — per-slice planning artifacts (decision logs reveal source)
+- `content_inventory.md` — filled inventory; ship only `content_inventory.example.md` template
+
+Before committing any new doc or code comment, scan it for: source brand/author names, paid-content tells ("primary account", "the course", platform names), distinctive setup names, specific extracted entity references (TE-N, C-N, ticker-tagged trades). If in doubt, write it locally first under one of the gitignored paths above.
