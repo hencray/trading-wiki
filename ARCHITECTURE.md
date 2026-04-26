@@ -50,11 +50,16 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/core/logging.py` | `structlog` JSON setup |
 | `trading_wiki/core/secrets.py` | pydantic-settings `Settings` (`SecretStr` for keys, `Path` for dirs) |
 | `trading_wiki/cli.py` | `ingest <url-or-file>` dispatcher; `trading-wiki` console script entry (Phase 2 prep) |
-| `trading_wiki/config.py` | shared paths, model names, tunables (`MODEL_PASS1`, `PROMPT_VERSION_PASS1`, `PROMPT_PASS1_PATH`) |
+| `trading_wiki/config.py` | shared paths, model names, tunables (`MODEL_PASS1`/`MODEL_PASS2`, `PROMPT_VERSION_PASS1`/`PROMPT_VERSION_PASS2_*`, prompt paths, `PASS2_LABEL_ROUTES`) |
 | `trading_wiki/core/llm.py` | Anthropic SDK wrapper: schema-via-tool-use call, JSON/schema retry, usage logging |
 | `trading_wiki/extractors/pass1.py` | Phase 2A Pass 1: transcript builder, coverage validator, `extract()` flow with idempotency and coverage retry, `python -m` entry point |
+| `trading_wiki/extractors/pass2/__init__.py` | Phase 2A Pass 2 dispatcher: routes Pass 1 chunks to per-type entity extractors via `PASS2_LABEL_ROUTES`; per-chunk resilience; `python -m` entry |
+| `trading_wiki/extractors/pass2/trade_example.py` | TradeExample Pydantic schemas + `extract_trade_examples_for_chunk` |
+| `trading_wiki/extractors/pass2/concept.py` | Concept Pydantic schemas + `extract_concepts_for_chunk` |
 | `prompts/pass1.md` | Pass 1 system prompt; version-stamped via `PROMPT_VERSION_PASS1` |
-| `migrations/` | numbered `.sql` files applied by `yoyo` (0001 = content + segments, 0002 = chunks) |
+| `prompts/pass2_trade_example.md` | Pass 2 TradeExample system prompt; version-stamped via `PROMPT_VERSION_PASS2_TRADE_EXAMPLE` |
+| `prompts/pass2_concept.md` | Pass 2 Concept system prompt; version-stamped via `PROMPT_VERSION_PASS2_CONCEPT` |
+| `migrations/` | numbered `.sql` files applied by `yoyo` (0001 = content + segments, 0002 = chunks, 0003 = trade_examples, 0004 = concepts) |
 | `tests/` | pytest suite; mirrors `trading_wiki/` package layout. `tests/fixtures/` holds shared synthetic transcripts. Integration tests are opt-in via `pytest -m integration` |
 
 ## Discipline (from CLAUDE.md / PROJECT_PLAN.md)
