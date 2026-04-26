@@ -511,3 +511,23 @@ class TestExtract:
             with pytest.raises(LookupError, match="content_id"):
                 extract(content_id=999, db_path=db_path)
             mock_call.assert_not_called()
+
+
+class TestCli:
+    def test_main_invokes_extract_with_content_id(self):
+        from unittest.mock import patch
+
+        from trading_wiki.extractors.pass1 import main
+
+        with patch("trading_wiki.extractors.pass1.extract") as mock_extract:
+            mock_extract.return_value = []
+            exit_code = main(["--content-id", "7"])
+            assert exit_code == 0
+            mock_extract.assert_called_once_with(content_id=7)
+
+    def test_main_missing_content_id_exits_nonzero(self):
+        from trading_wiki.extractors.pass1 import main
+
+        with pytest.raises(SystemExit) as ei:
+            main([])
+        assert ei.value.code != 0

@@ -206,3 +206,26 @@ def extract(
     return load_chunks_for_version(
         db_path, content_id=content_id, prompt_version=PROMPT_VERSION_PASS1
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass1",
+        description="Run Pass 1 (chunk + classify) on a single content_id.",
+    )
+    parser.add_argument(
+        "--content-id",
+        type=int,
+        required=True,
+        help="The content.id to extract.",
+    )
+    args = parser.parse_args(argv)
+    rows = extract(content_id=args.content_id)
+    print(f"Wrote {len(rows)} chunk rows for content_id={args.content_id}.")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
