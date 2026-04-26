@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -183,3 +184,148 @@ def test_sample_items_random_n_larger_than_pool_returns_all(tmp_path):
         rng_seed=0,
     )
     assert len(items) == 2
+
+
+def _seed_stratified(tmp_path: Path) -> tuple[Path, int]:
+    """Seed: 4 trade_examples in 'example' chunks, 4 concepts in 'concept' chunks."""
+    db = tmp_path / "t.db"
+    apply_migrations(db)
+    cid = save_content_record(
+        db,
+        ContentRecord(
+            source_type="local_video",
+            source_id="a",
+            title="A",
+            author=None,
+            created_at=datetime(2026, 4, 1),
+            ingested_at=datetime(2026, 4, 22),
+            raw_text="x" * 8,
+            segments=[
+                Segment(
+                    seq=i,
+                    text=f"chunk {i}",
+                    start_seconds=float(i),
+                    end_seconds=float(i + 1),
+                )
+                for i in range(8)
+            ],
+        ),
+    )
+    save_chunks(
+        db,
+        content_id=cid,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=i,
+                    start_seg_seq=i,
+                    end_seg_seq=i,
+                    label="example" if i < 4 else "concept",
+                    confidence="high",
+                    summary=f"s{i}",
+                )
+                for i in range(8)
+            ]
+        ),
+    )
+    chunks = load_chunks_for_version(db, content_id=cid, prompt_version="pass1-v1")
+    for ch in chunks[:4]:
+        save_trade_examples(
+            db,
+            source_chunk_id=ch["id"],
+            prompt_version="pass2-trade-example-v1",
+            output=TradeExampleOutput(
+                entities=[
+                    TradeExample(
+                        ticker="AAPL",
+                        direction="long",
+                        instrument_type="stock",
+                        trade_date=None,
+                        entry_price=100.0,
+                        stop_price=99.0,
+                        target_price=110.0,
+                        exit_price=105.0,
+                        entry_description="enter on breakout",
+                        exit_description="exit at target",
+                        outcome_text="closed at target",
+                        outcome_classification="won",
+                        lessons=None,
+                        confidence="high",
+                    )
+                ]
+            ),
+        )
+    for ch in chunks[4:]:
+        save_concepts(
+            db,
+            source_chunk_id=ch["id"],
+            prompt_version="pass2-concept-v1",
+            output=ConceptOutput(
+                entities=[
+                    Concept(
+                        term=f"T{ch['id']}",
+                        definition="some standalone definition that is long enough",
+                        related_terms=[],
+                        confidence="high",
+                    )
+                ]
+            ),
+        )
+    return db, cid
+
+
+def test_sample_items_stratified_balances_across_labels(tmp_path):
+    db, cid = _seed_stratified(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="stratified",
+        n=4,
+        rng_seed=0,
+    )
+    counts = Counter(i.chunk_label for i in items)
+    assert counts == {"example": 2, "concept": 2}
+
+
+def test_sample_items_stratified_distributes_remainder(tmp_path):
+    db, cid = _seed_stratified(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="stratified",
+        n=5,
+        rng_seed=0,
+    )
+    counts = Counter(i.chunk_label for i in items)
+    assert sum(counts.values()) == 5
+    assert max(counts.values()) - min(counts.values()) <= 1
+
+
+def test_sample_items_stratified_single_label_returns_n_from_that_bucket(tmp_path):
+    db, cid = _seed_stratified(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["concept"],
+        mode="stratified",
+        n=3,
+        rng_seed=0,
+    )
+    assert len(items) == 3
+    assert {i.chunk_label for i in items} == {"concept"}
+
+
+def test_sample_items_stratified_n_exceeds_bucket_returns_what_exists(tmp_path):
+    db, cid = _seed_stratified(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["concept"],
+        mode="stratified",
+        n=99,
+        rng_seed=0,
+    )
+    assert len(items) == 4

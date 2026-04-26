@@ -104,4 +104,23 @@ def sample_items(
         if n >= len(pool):
             return pool
         return rng.sample(pool, n)
+    if mode == "stratified":
+        rng = random.Random(rng_seed)
+        buckets: dict[str, list[ReviewItem]] = {}
+        for item in pool:
+            buckets.setdefault(item.chunk_label, []).append(item)
+        if not buckets:
+            return []
+        labels = list(buckets)
+        base, remainder = divmod(n, len(labels))
+        order = sorted(labels, key=lambda lbl: (-len(buckets[lbl]), labels.index(lbl)))
+        targets: dict[str, int] = dict.fromkeys(labels, base)
+        for lbl in order[:remainder]:
+            targets[lbl] += 1
+        out: list[ReviewItem] = []
+        for lbl in labels:
+            bucket = buckets[lbl]
+            take = min(targets[lbl], len(bucket))
+            out.extend(rng.sample(bucket, take) if take < len(bucket) else bucket)
+        return out
     raise NotImplementedError(f"mode={mode} not yet implemented")
