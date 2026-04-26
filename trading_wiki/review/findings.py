@@ -133,3 +133,8 @@ def append_finding(path: Path | str, finding: Finding, *, content_id: int) -> No
     else:
         sep = "\n\n"
     p.write_text(existing + sep + block)
+
+
+def reviewed_ids(findings: list[Finding]) -> set[tuple[EntityType, int]]:
+    """Return the set of ``(entity_type, entity_id)`` pairs already reviewed."""
+    return {(f.entity_type, f.entity_id) for f in findings}

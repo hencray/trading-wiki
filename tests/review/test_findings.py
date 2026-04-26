@@ -9,6 +9,7 @@ from trading_wiki.review.findings import (
     append_finding,
     findings_path_for,
     read_findings,
+    reviewed_ids,
 )
 
 
@@ -178,3 +179,33 @@ def test_append_finding_roundtrips_via_read_findings(tmp_path):
     )
     append_finding(p, f, content_id=5)
     assert read_findings(p) == [f]
+
+
+def test_reviewed_ids_empty_returns_empty_set():
+    assert reviewed_ids([]) == set()
+
+
+def test_reviewed_ids_returns_pairs():
+    fs = [
+        Finding(
+            "trade_example",
+            1,
+            "accept",
+            10,
+            "example",
+            "pass2-trade-example-v1",
+            datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC),
+            "",
+        ),
+        Finding(
+            "concept",
+            2,
+            "skip",
+            11,
+            "concept",
+            "pass2-concept-v1",
+            datetime(2026, 4, 26, 12, 1, 0, tzinfo=UTC),
+            "",
+        ),
+    ]
+    assert reviewed_ids(fs) == {("trade_example", 1), ("concept", 2)}
