@@ -3,7 +3,7 @@ name = "trading-wiki"
 version = "0.1.0"
 description = "Knowledge wiki + acid-test trading bot built on v1 source and other ingested trading content"
 requires-python = ">=3.12"
-license = { text = "Proprietary" }
+license = "MIT"
 authors = [{ name = "hencray" }]
 dependencies = [
     "pydantic>=2.10",
