@@ -1514,7 +1514,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 ### Immediate actions
 - [x] ~~Phase 0 smoke test~~ — **skipped 2026-04-22** (see Pre-Phase-1 Decisions)
 - [x] ~~Verify DiscordChatExporter~~ — **superseded 2026-04-22**, pasted-text approach
-- [x] **Course content inventory** — captured in `content_inventory.md` (rough: ~12 core videos + ~10 adjacent, 10 min to ~3 hrs each, no PDFs, Discord via paste, course-platform text TBD)
+- [x] **Course content inventory** — captured locally in `content_inventory.md` (gitignored; template at `content_inventory.example.md`); rough: ~12 core videos + ~10 adjacent, 10 min to ~3 hrs each, no PDFs, Discord via paste, course-platform text TBD
 - [x] **`.env.example` + `.gitignore`** — done 2026-04-21
 - [x] **Repo hosting** — **GitHub private** (2026-04-22)
 - [x] ~~Clarify format of course-platform text content~~ — **resolved 2026-04-22:** user provides content directly; no platform-specific handler needed

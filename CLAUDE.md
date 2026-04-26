@@ -16,7 +16,7 @@ What lives where:
 - **`tests/`** — pytest suite, mirrors the package layout. TDD discipline: failing test before production code.
 - **`migrations/`** — numbered SQL files applied by `yoyo-migrations` via `core/db.py`.
 - **`brainstorm_edits_v1.md`** — historical patch document. Reference only.
-- **`content_inventory.md`** — living inventory of v1 source content for ingestion.
+- **`content_inventory.example.md`** — template for tracking what content to ingest. Copy to `content_inventory.md` (gitignored) and fill in locally; never commit the filled version.
 - **`phase0_worksheet.md`** — optional Phase 0 template (skipped 2026-04-22).
 - **`.env.example`** — secrets template (real `.env` is gitignored).
 

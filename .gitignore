@@ -53,6 +53,9 @@ logs/
 # Hand-reviews of extracted content — local-only by policy
 docs/superpowers/reviews/
 
+# Real content inventory stays local; ship the .example template instead
+content_inventory.md
+
 # NOTE: backtest reports (./reports/) are intentionally NOT ignored —
 # per PROJECT_PLAN.md they are dated and immutable, committed as
 # part of the research trail.
