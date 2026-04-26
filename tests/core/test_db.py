@@ -432,3 +432,252 @@ def test_migration_0004_creates_concepts_table(tmp_path):
         )
         row = conn.execute("SELECT related_terms FROM concepts WHERE term = 'breakout'").fetchone()
         assert row[0] == "[]"
+
+
+def test_load_chunk_by_id_returns_row(tmp_path):
+    from trading_wiki.core.db import (
+        load_chunk_by_id,
+        save_chunks,
+    )
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+
+    record = ContentRecord(
+        source_type="test",
+        source_id="vid1",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="hello world",
+        segments=[
+            Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0),
+            Segment(seq=1, text="world", start_seconds=1.0, end_seconds=2.0),
+        ],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=1,
+                    label="example",
+                    confidence="high",
+                    summary="trade walkthrough",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+    row = load_chunk_by_id(db_path, chunk_id=chunk_id)
+    assert row is not None
+    assert row["label"] == "example"
+    assert row["text"] == "hello\nworld"
+    assert row["content_id"] == content_id
+
+
+def test_load_chunk_by_id_returns_none_when_missing(tmp_path):
+    from trading_wiki.core.db import load_chunk_by_id
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    assert load_chunk_by_id(db_path, chunk_id=999) is None
+
+
+def test_save_and_load_trade_examples(tmp_path):
+    """save_trade_examples writes all rows in one transaction; loader reads them back."""
+    from trading_wiki.core.db import (
+        load_trade_examples_for_version,
+        save_chunks,
+        save_trade_examples,
+    )
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+    from trading_wiki.extractors.pass2.trade_example import (
+        TradeExample,
+        TradeExampleOutput,
+    )
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="x")],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="example",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+    out = TradeExampleOutput(
+        entities=[
+            TradeExample(
+                ticker="NVDA",
+                direction="long",
+                instrument_type="stock",
+                trade_date="2026-03-05",
+                entry_price=846.0,
+                exit_price=857.5,
+                entry_description="in at 846",
+                exit_description="out at 857.5",
+                outcome_text="won 11R",
+                outcome_classification="won",
+                confidence="high",
+            ),
+            TradeExample(
+                ticker="BKSY",
+                direction="short",
+                instrument_type="stock",
+                entry_description="entered short",
+                exit_description="covered",
+                outcome_text="lost 1R",
+                outcome_classification="lost",
+                confidence="medium",
+            ),
+        ]
+    )
+    save_trade_examples(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-trade-example-v1",
+        output=out,
+    )
+
+    rows = load_trade_examples_for_version(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-trade-example-v1",
+    )
+    assert len(rows) == 2
+    nvda = next(r for r in rows if r["ticker"] == "NVDA")
+    assert nvda["direction"] == "long"
+    assert nvda["entry_price"] == 846.0
+    assert nvda["outcome_classification"] == "won"
+    bksy = next(r for r in rows if r["ticker"] == "BKSY")
+    assert bksy["entry_price"] is None
+    assert bksy["outcome_classification"] == "lost"
+
+    # Different prompt version → empty.
+    assert (
+        load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-trade-example-v2",
+        )
+        == []
+    )
+
+
+def test_save_trade_examples_rolls_back_on_error(tmp_path):
+    """If any insert fails (CHECK violation), no rows for that call should land."""
+    from unittest.mock import patch
+
+    from trading_wiki.core.db import (
+        load_trade_examples_for_version,
+        save_chunks,
+        save_trade_examples,
+    )
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+    from trading_wiki.extractors.pass2.trade_example import (
+        TradeExample,
+        TradeExampleOutput,
+    )
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="x")],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="example",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+    good = TradeExample(
+        ticker="NVDA",
+        direction="long",
+        instrument_type="stock",
+        entry_description="i",
+        exit_description="o",
+        outcome_text="w",
+        confidence="high",
+    )
+    out = TradeExampleOutput(entities=[good, good])
+
+    real_dump = TradeExample.model_dump
+    call_count = {"n": 0}
+
+    def flaky_dump(self, **kwargs):
+        result = real_dump(self, **kwargs)
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            result["direction"] = "sideways"  # rejected by DB CHECK
+        return result
+
+    with (
+        patch.object(TradeExample, "model_dump", flaky_dump),
+        pytest.raises(sqlite3.IntegrityError),
+    ):
+        save_trade_examples(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-trade-example-v1",
+            output=out,
+        )
+
+    rows = load_trade_examples_for_version(
+        db_path,
+        source_chunk_id=chunk_id,
+        prompt_version="pass2-trade-example-v1",
+    )
+    assert rows == []

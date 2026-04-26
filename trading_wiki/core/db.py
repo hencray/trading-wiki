@@ -12,6 +12,7 @@ from trading_wiki.handlers.base import ContentRecord, Segment
 
 if TYPE_CHECKING:
     from trading_wiki.extractors.pass1 import Pass1Output
+    from trading_wiki.extractors.pass2.trade_example import TradeExampleOutput
 
 _MIGRATIONS_DIR = Path(__file__).parent.parent.parent / "migrations"
 
@@ -221,5 +222,83 @@ def load_chunks_for_version(
         rows = conn.execute(
             "SELECT * FROM chunks WHERE content_id = ? AND prompt_version = ? ORDER BY seq",
             (content_id, prompt_version),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def load_chunk_by_id(
+    db_path: Path | str,
+    *,
+    chunk_id: int,
+) -> dict[str, Any] | None:
+    """Return the chunk row for the given id, or ``None`` if not found."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM chunks WHERE id = ?",
+            (chunk_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+
+def save_trade_examples(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+    output: "TradeExampleOutput",
+) -> None:
+    """Write all entities from a TradeExampleOutput in a single transaction.
+
+    Raises sqlite3.IntegrityError on CHECK / FK violations; the transaction is
+    rolled back so partial writes don't land.
+    """
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        for entity in output.entities:
+            data = entity.model_dump()
+            conn.execute(
+                """
+                INSERT INTO trade_examples (
+                    source_chunk_id, ticker, direction, instrument_type,
+                    trade_date, entry_price, stop_price, target_price, exit_price,
+                    entry_description, exit_description, outcome_text,
+                    outcome_classification, lessons, confidence,
+                    prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_chunk_id,
+                    data["ticker"],
+                    data["direction"],
+                    data["instrument_type"],
+                    data["trade_date"],
+                    data["entry_price"],
+                    data["stop_price"],
+                    data["target_price"],
+                    data["exit_price"],
+                    data["entry_description"],
+                    data["exit_description"],
+                    data["outcome_text"],
+                    data["outcome_classification"],
+                    data["lessons"],
+                    data["confidence"],
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_trade_examples_for_version(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return TradeExample rows for ``(source_chunk_id, prompt_version)`` ordered by id."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM trade_examples "
+            "WHERE source_chunk_id = ? AND prompt_version = ? ORDER BY id",
+            (source_chunk_id, prompt_version),
         ).fetchall()
         return [dict(row) for row in rows]
