@@ -41,7 +41,7 @@ def test_save_and_load_content_record_roundtrips(tmp_path):
         source_type="local_video",
         source_id="abc123",
         title="lesson 1",
-        author="the v1 author",
+        author="Test Author",
         created_at=datetime(2026, 4, 1, 12, 0, 0),
         ingested_at=datetime(2026, 4, 22, 18, 0, 0),
         raw_text="Hello world.",

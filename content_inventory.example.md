@@ -1,23 +1,22 @@
-# v1 source Content Inventory
+# Content Inventory (template)
 
-*Living document. Tracks what's in scope for Phase 1 ingestion. Updated as items are identified, transcribed, and ingested.*
+*Local-only document. Copy this file to `content_inventory.md` (gitignored) and fill in your own ingestion plan. Tracks what's in scope for Phase 1 ingestion.*
 
-*Last updated: 2026-04-22*
+*Last updated: YYYY-MM-DD*
 
 ---
 
-## Summary (rough, 2026-04-22)
+## Summary
 
-- **Core videos:** ~12
-- **Adjacent / deep-dive videos:** ~10
-- **Duration range:** 10 min to ~3 hrs per video
-- **PDFs:** none found in the v1 source content
-- **Discord:** member access; ingestion via paste-in (not DiscordChatExporter)
-- **Course-platform text content:** present; user extracts and provides directly (no platform-specific scraping)
-- **Twitter/X:** deferred per plan
+- **Core videos:** TBD
+- **Adjacent / deep-dive videos:** TBD
+- **Duration range:** TBD
+- **PDFs:** TBD
+- **Discord:** ingestion via paste-in (see `handlers/discord.py`)
+- **Course-platform text content:** ingestion via paste-in (see `handlers/course_platform.py`)
 
-**Estimated audio volume:** ~22 videos × ~1 hr average ≈ 20–25 hrs to transcribe.
-**Estimated Whisper cost:** ≈ $7–11 total at $0.006/min (one-off, not ongoing).
+**Estimated audio volume:** *(videos × average duration)*
+**Estimated Whisper cost:** *($0.006/min × estimated minutes)*
 
 ---
 
@@ -26,54 +25,34 @@
 | # | Title | Duration | Source (local path / URL) | Transcribed | Notes |
 |---|---|---|---|---|---|
 | 1 |  |  |  | ☐ |  |
-| 2 |  |  |  | ☐ |  |
-| 3 |  |  |  | ☐ |  |
-| 4 |  |  |  | ☐ |  |
-| 5 |  |  |  | ☐ |  |
-| 6 |  |  |  | ☐ |  |
-| 7 |  |  |  | ☐ |  |
-| 8 |  |  |  | ☐ |  |
-| 9 |  |  |  | ☐ |  |
-| 10 |  |  |  | ☐ |  |
-| 11 |  |  |  | ☐ |  |
-| 12 |  |  |  | ☐ |  |
 
 ## Adjacent / deep-dive videos
 
 | # | Title | Duration | Source | Transcribed | Notes |
 |---|---|---|---|---|---|
 | 1 |  |  |  | ☐ |  |
-| 2 |  |  |  | ☐ |  |
-| 3 |  |  |  | ☐ |  |
-| 4 |  |  |  | ☐ |  |
-| 5 |  |  |  | ☐ |  |
-| 6 |  |  |  | ☐ |  |
-| 7 |  |  |  | ☐ |  |
-| 8 |  |  |  | ☐ |  |
-| 9 |  |  |  | ☐ |  |
-| 10 |  |  |  | ☐ |  |
 
 ## Discord
 
-- Server: *(name TBD)*
-- Channels in scope: *(TBD — e.g. #announcements, #trade-ideas, #Q&A)*
-- Ingestion method: copy/paste from member view
+- Server: *(name)*
+- Channels in scope: *(channel list)*
+- Ingestion method: copy/paste from a member-view export
 - Raw pastes stored under `content/discord/` (gitignored); normalised transcripts committed as `.md` in `transcripts/discord/`
 
 ## Course-platform text content
 
-- Ingestion method: user extracts and provides content directly (no platform scraping)
-- Content shape: *(TBD as items are identified)*
-- Rough volume: *(TBD)*
-- Handler: same pasted-text normaliser as Discord, with `source_type=course_text` metadata
+- Ingestion method: user provides text content directly (no platform scraping)
+- Content shape: *(describe)*
+- Rough volume: *(estimate)*
+- Handler: shared pasted-text normaliser, with `source_type=course_platform` metadata
 
 ---
 
 ## Ingestion status
 
-- Phase 1 handlers implemented: **none** (pre-Phase-1)
-- Items ingested: **0 / ~22+**
+- Phase 1 handlers implemented: *(list)*
+- Items ingested: **0 / TBD**
 
 ## Update log
 
-- **2026-04-22:** initial rough inventory captured from conversation. Specifics (titles / durations / URLs) to be filled row-by-row as items are identified.
+- **YYYY-MM-DD:** initial inventory captured.

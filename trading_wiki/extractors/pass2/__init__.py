@@ -1,7 +1,6 @@
 """Phase 2A v0.2 — Pass 2 dispatcher.
 
 Routes Pass 1 chunks to per-type entity extractors based on chunk label.
-See docs/superpowers/specs/2026-04-25-phase-2a-pass2-design.md §5.5.
 """
 
 from dataclasses import dataclass, field

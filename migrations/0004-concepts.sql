@@ -1,5 +1,4 @@
 -- Phase 2A v0.2: Pass 2 (Concept) output table.
--- See docs/superpowers/specs/2026-04-25-phase-2a-pass2-design.md §5.1.
 
 CREATE TABLE concepts (
     id INTEGER PRIMARY KEY,

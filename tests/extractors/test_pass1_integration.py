@@ -3,7 +3,7 @@
 Run with: ``uv run pytest -m integration``
 Skipped by default. Requires:
   - ANTHROPIC_API_KEY set in .env
-  - At least one transcribed v1 source video in the configured DB
+  - At least one transcribed video in the configured DB
   - The CONTENT_ID env var pointing at it (e.g. CONTENT_ID=7)
 """
 

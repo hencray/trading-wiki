@@ -1,10 +1,10 @@
 {
-  "title": "v1 source — Synthetic short transcript (test fixture)",
+  "title": "Synthetic short transcript (test fixture)",
   "segments": [
     {"seq": 0, "text": "Welcome back, today we're going to talk about pivot points.", "start_seconds": 0.0, "end_seconds": 4.2},
     {"seq": 1, "text": "Specifically the way I trade them on the 60-min chart.", "start_seconds": 4.2, "end_seconds": 10.1},
     {"seq": 2, "text": "But first, a quick word from our sponsor, BrokerCo.", "start_seconds": 10.1, "end_seconds": 18.0},
-    {"seq": 3, "text": "BrokerCo gives you commission-free trading and a free month with code v1 source.", "start_seconds": 18.0, "end_seconds": 26.4},
+    {"seq": 3, "text": "BrokerCo gives you commission-free trading and a free month for new sign-ups.", "start_seconds": 18.0, "end_seconds": 26.4},
     {"seq": 4, "text": "OK, back to pivots. A pivot is the prior period's high, low, and close averaged.", "start_seconds": 26.4, "end_seconds": 35.0},
     {"seq": 5, "text": "We use it as a key intraday level. Above pivot, we're long-biased.", "start_seconds": 35.0, "end_seconds": 42.5},
     {"seq": 6, "text": "Below pivot, short-biased. The setup I trade is called the Pullback Hold.", "start_seconds": 42.5, "end_seconds": 50.0},

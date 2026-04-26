@@ -161,7 +161,7 @@ Build the system that eats content and produces clean, structured text.
 **Tooling by source type:**
 - Local videos → extract audio (ffmpeg) → OpenAI Whisper API
 - YouTube → `yt-dlp` → use existing subs if human-made, else Whisper API
-- Discord → manual copy/paste of messages → pasted-text handler normalises (author, timestamp, thread heuristics) → store. Sidesteps DCE ToS violation — no user token, no throwaway account needed. User has member access on personal account.
+- Discord → manual copy/paste of messages → pasted-text handler normalises (author, timestamp, thread heuristics) → store. Sidesteps DCE ToS violation — no user token, no throwaway account needed.
 - Twitter/X → depends on access — `snscrape` (may be broken), paid API, or manual export
 - PDFs → `pdfplumber` / `PyMuPDF`, OCR fallback for scanned
 - EPUBs → `ebooklib`
@@ -179,7 +179,7 @@ Build the system that eats content and produces clean, structured text.
 
 **Twitter/X:** Deferred — not in v1
 
-**Discord:** resolved 2026-04-22 — pasted-text handler, not DiscordChatExporter. User has member access on personal account and will paste relevant channels/messages as found.
+**Discord:** resolved 2026-04-22 — pasted-text handler, not DiscordChatExporter. User pastes relevant channels/messages as found.
 
 **Course platform text:** user extracts and hands over content directly (resolved 2026-04-22 — platform-specific scraping not needed). Handler accepts text blobs with source metadata; likely shares the Discord paste-in normaliser.
 
@@ -426,7 +426,7 @@ Vision: Sonnet 4.6 for chart extraction (capable enough, cheaper than Opus).
 ---
 
 **Credibility tiering** (set at Phase 1, propagated through)
-- Tier 1: Core course content from instructor (v1 source: the v1 author's primary videos)
+- Tier 1: Core course content from instructor (the v1 source's primary videos)
 - Tier 2: Instructor's Q&A / live sessions
 - Tier 3: Other traders / guests in course
 - Tier 4: Student discussion / Discord chatter
@@ -542,7 +542,7 @@ Questions covered: exact trigger condition (boolean on OHLCV + indicators), exac
 - Watchlist curation: daily chart setup detector or manual feed to bot?
 
 *Step 3 — Setup validation via extracted examples*
-After formalizing a setup, run the detector over historical dates of the extracted `TradeExample`s from v1 source course content. Does it fire when the v1 author said it should? Mismatch = formalization is wrong, back to spec interview. Effectively a cheap Gate 0 before the gauntlet.
+After formalizing a setup, run the detector over historical dates of the extracted `TradeExample`s from v1 source course content. Does it fire when the author said it should? Mismatch = formalization is wrong, back to spec interview. Effectively a cheap Gate 0 before the gauntlet.
 
 *Step 4 — Spec → Python*
 Spec becomes code. Mostly mechanical because spec is unambiguous. LLM-assisted, human reviews every line — this code might trade real money.
@@ -691,7 +691,7 @@ Most human-intensive phase of the project. LLM can't resolve ambiguities — onl
 - **Overfitting** — trying 500 param combos until one works, then "testing" on OOS that's now effectively in-sample
 - **Ignoring costs** — commissions, slippage, spread, borrow fees, market impact
 - **Regime bias** — momentum looks great in 2009–2021, fails in 2022. Mean-reversion: opposite.
-- **Data snooping** — backtesting on the same period the v1 source content used for examples = circular
+- **Data snooping** — backtesting on the same period the v1 source used for examples = circular
 
 ---
 
@@ -1344,7 +1344,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - v1 build order: scaffolding → local video → YouTube → Discord → (stubs for PDF/EPUB/article)
 - Structured logging with `structlog` from day 1
 - Secrets via `.env` + `python-dotenv` from day 1
-- **Discord ingestion: pasted text, not DiscordChatExporter** — user copies messages from member view and the handler normalises. Sidesteps DCE ToS violation; eliminates throwaway-account requirement.
+- **Discord ingestion: pasted text, not DiscordChatExporter** — user copies messages from a member-view export and the handler normalises. Sidesteps DCE ToS violation; eliminates throwaway-account requirement.
 - **Course platform text:** user extracts and provides content directly (resolved 2026-04-22). No platform-specific scraper. Handler accepts text blobs with source metadata; probably shares the Discord pasted-text handler.
 - **Transcripts persisted as `.md` files in repo** (alongside SQLite index). Enables cloud-portable Phase 2 work; SQLite is a derived, rebuildable index, not the source of truth.
 - **Project layout** (resolved 2026-04-22): real Python package at `trading_wiki/`, tests mirror at `tests/`, migrations at `migrations/`. `pyproject.toml` (PEP 621) is the single source of truth for deps and tool config. Python pinned to 3.12 via `.python-version`.
@@ -1370,8 +1370,8 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **PDF / EPUB / article stubs** (2026-04-25): `PdfHandler` / `EpubHandler` / `ArticleHandler` implement the `BaseHandler` interface. `can_handle` returns the right boolean (`.pdf`, `.epub`, `http(s)://` respectively); `ingest` raises `NotImplementedError("… deferred to post-Phase-1")`. Excluded from coverage by the existing `raise NotImplementedError` rule in `pyproject.toml`. `ArticleHandler.can_handle` is intentionally broad — overlap with `YoutubeHandler` on YouTube URLs is the CLI dispatcher's concern, not the handler's.
 
 ### Phase 2
-- **Phase 2A v0.2 = Pass 2 (TradeExample + Concept), per-type extractors, label-routed — SHIPPED 2026-04-26.** Vertical-ish slice extending Pass 1's plumbing to two distinct entity types in one slice — TradeExample (numeric prices when clean, NULL when vague) and Concept (term + definition + related_terms, no synonym canonicalization). New `extractors/pass2/` package with one file per entity type; dispatcher routes by Pass 1 label (`example` → TradeExample; `concept`/`qa` → Concept). Migrations 0003 + 0004. Per-chunk resilience added at the dispatcher. Strategy/Setup/Rule/MarketCondition deferred to v0.3 (cross-chunk, need Pass 3); Concept dedup deferred to v0.3. Spec at `docs/superpowers/specs/2026-04-25-phase-2a-pass2-design.md`. Plan at `docs/superpowers/plans/2026-04-25-phase-2a-pass2.md`. **v0.2 validation:** Pass 2 ran against both Tier 1 videos (`content_id=1` Part 02 added 2026-04-26 mid-review with the CLI fix below; full corpus = 8 trade_examples + 48 concepts across 9 routed chunks, zero failed chunks, all single-attempt at Sonnet 4.6, ≈$0.13 for Part 02). Hand-review of 5+5 stratified spot-checks (`docs/superpowers/reviews/2026-04-26-phase-2a-v0.2-handreview.md`) passed §2(6) bar at 5/5 + 5/5; prompt versions **locked** at `pass2-trade-example-v1` and `pass2-concept-v1`. **CLI bug fix landed mid-review:** commit `734714a`'s documented `python -m trading_wiki.extractors.pass2 --content-id N` invocation was unreachable (CLI block placed in `__init__.py`'s `if __name__` guard rather than `__main__.py`); added `__main__.py`, removed the dead block, added a subprocess regression test. 180 unit tests + 2 integration tests, 98% coverage. **v0.3 prompt-iteration backlog** (revisit once more Tier 1 sources are ingested — n=2 videos is too small to commit to prompt rewrites): silent price rescaling (TE-5 spoken "2.95" → `295.0`), trade-attribution semantics (TE-1 PLTR `instrument_type=option` may be over-extraction when the speaker narrates *others'* flow), concept-vs-metaphor classification ("(redacted)" currently extracted as a Concept), term-naming bias toward the speaker's words (C-4 "(redacted)" is the extractor's coinage), synonym dedup ("false breakout" / "fake breakout"), and Pass 1 ↔ Pass 2 prompt-context contamination check (chunk 26's Pass 1 summary says "DDOG" but its transcript is TSLA — confirm `pass2-*-v1` reads only `chunks.text`, not `chunks.summary`).
-- **Phase 2A v0.1 = Pass 1 only, one Tier 1 video — SHIPPED 2026-04-25.** Vertical slice: chunk + classify a real Tier 1 video with Sonnet 4.6, write to a new `chunks` table. Implementation: `core/llm.py` (schema-via-tool-use Anthropic SDK wrapper), `extractors/pass1.py` (transcript builder, coverage validator, idempotent `extract()`), migration `0002-chunks.sql`, `prompts/pass1.md` (version-stamped via `PROMPT_VERSION_PASS1`). Spec: `docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md`. Plan: `docs/superpowers/plans/2026-04-25-phase-2a-pass1.md`. **v0.1 validation:** v1 source primary videos (`content_id=2`) and Part 02 (`content_id=1`) ingested + chunked at `prompt_version=pass1-v1`; **first prompt iteration passed §2(5) review without revision.** Pass 1 produced 17 sensibly-labeled chunks per 60-min part, with two `medium`-confidence flags falling on borderline transitional content (correctly hedged). Schema-validation retry logic worked as designed: Part 02's first call had 12 over-length summaries; the retry-with-feedback fixed all of them. Embeddings, entity extraction, resolution, relationships, review UI, and chart pipeline remain deferred to later slices. **Next slice: v0.2 = Pass 2 (entity extraction → Strategy/Setup/Concept JSON).**
+- **Phase 2A v0.2 = Pass 2 (TradeExample + Concept), per-type extractors, label-routed — SHIPPED 2026-04-26.** Vertical-ish slice extending Pass 1's plumbing to two distinct entity types in one slice — TradeExample (numeric prices when clean, NULL when vague) and Concept (term + definition + related_terms, no synonym canonicalization). New `extractors/pass2/` package with one file per entity type; dispatcher routes by Pass 1 label (`example` → TradeExample; `concept`/`qa` → Concept). Migrations 0003 + 0004. Per-chunk resilience added at the dispatcher. Strategy/Setup/Rule/MarketCondition deferred to v0.3 (cross-chunk, need Pass 3); Concept dedup deferred to v0.3. **v0.2 validation:** ran against the v1 source content's primary videos with zero failed chunks, all single-attempt at Sonnet 4.6. Hand-review of stratified spot-checks passed the acceptance bar; prompt versions **locked** at `pass2-trade-example-v1` and `pass2-concept-v1`. **CLI bug fix landed mid-review:** the documented `python -m trading_wiki.extractors.pass2 --content-id N` invocation was unreachable (CLI block placed in `__init__.py`'s `if __name__` guard rather than `__main__.py`); added `__main__.py`, removed the dead block, added a subprocess regression test. 180 unit tests + 2 integration tests, 98% coverage. **v0.3 prompt-iteration backlog** (revisit once more sources are ingested — n=2 is too small to commit to prompt rewrites): silent price rescaling, trade-attribution semantics, concept-vs-metaphor classification, term-naming bias toward the speaker's words, synonym dedup, and Pass 1 ↔ Pass 2 prompt-context contamination check.
+- **Phase 2A v0.1 = Pass 1 only, one Tier 1 video — SHIPPED 2026-04-25.** Vertical slice: chunk + classify a real Tier 1 video with Sonnet 4.6, write to a new `chunks` table. Implementation: `core/llm.py` (schema-via-tool-use Anthropic SDK wrapper), `extractors/pass1.py` (transcript builder, coverage validator, idempotent `extract()`), migration `0002-chunks.sql`, `prompts/pass1.md` (version-stamped via `PROMPT_VERSION_PASS1`). **v0.1 validation:** ingested + chunked the v1 source's primary videos at `prompt_version=pass1-v1`; **first prompt iteration passed acceptance review without revision.** Pass 1 produced 17 sensibly-labeled chunks per 60-min part, with two `medium`-confidence flags falling on borderline transitional content (correctly hedged). Schema-validation retry logic worked as designed: one part's first call had over-length summaries; the retry-with-feedback fixed all of them. Embeddings, entity extraction, resolution, relationships, review UI, and chart pipeline remain deferred to later slices. **Next slice: v0.2 = Pass 2 (entity extraction → Strategy/Setup/Concept JSON).**
 - **Phase 1 follow-up surfaced 2026-04-25:** `core/audio.py` default of 32 kbps mono mp3 produced files exceeding Whisper's 25 MiB sync upload limit for 3+ hour videos. Lowered to 16 kbps in commit `28f81ab`; new test asserts via ffprobe so the regression can't recur silently. Whisper also exhibits a hallucination loop on long silent audio (it transcribed a 10-min break in Part 02 as a single sentence repeated dozens of times, which Pass 1 correctly labeled `noise` but the underlying transcript is unusable for Pass 2). Acceptable for v0.1; revisit if Pass 2 starts pulling junk content from `noise`-labeled chunks.
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
 - **Extraction strategy:** Extract everything, tag low-confidence for review (not aggressive filtering)
@@ -1464,7 +1464,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 *Risks we acknowledge but don't necessarily solve. Named risks hurt less than surprise risks.*
 
 **Legal / ToS**
-- Course vendor (v1 source) may assert derivative-works claim over extracted content — mitigation: keep pipeline for personal use only, don't publish the wiki, don't monetize derivative models
+- Course vendor may assert derivative-works claim over extracted content — mitigation: keep pipeline for personal use only, don't publish the wiki, don't monetize derivative models
 - ~~Discord ToS prohibits self-bots / user-token automation (DiscordChatExporter route) — enforcement against personal archiving is rare but not zero. Mitigation: throwaway Discord account joined only to target server~~ **Resolved 2026-04-22:** ingestion approach changed to pasted text (no user token, no automation). Risk no longer applies.
 
 **Platform / vendor**
@@ -1493,7 +1493,7 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 
 *All resolved. Remaining checkboxes are things to execute before code, not decisions to make.*
 
-- [x] **Phase 0 smoke test** — **skipped 2026-04-22** (user opted out; `phase0_worksheet.md` retained as optional template). Risk that v1 source is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front.
+- [x] **Phase 0 smoke test** — **skipped 2026-04-22** (user opted out). Risk that the v1 source content is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front.
 - [x] **Specific course identity** — **the v1 source content** ✅
 - [x] **Asset class** — **Stocks only, QQQ/Nasdaq-100 + liquidity filter** ✅
 - [x] **Timeframe** — **Intraday (60-min) + daily scan v1; daily/weekly swing v2** ✅

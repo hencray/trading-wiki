@@ -3,8 +3,7 @@
 Run with: ``uv run pytest -m integration``
 Skipped by default. Requires:
   - ANTHROPIC_API_KEY set in .env
-  - Pass 1 already run for at least one content_id (default: CONTENT_ID=2,
-    the v1 source primary videos from Phase 2A v0.1).
+  - Pass 1 already run for at least one content_id (default: CONTENT_ID=2).
 """
 
 import os

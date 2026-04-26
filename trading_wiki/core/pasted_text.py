@@ -12,10 +12,9 @@ def ingest_pasted_text(
 ) -> ContentRecord:
     """Read a pasted-text file, store it content-addressed, return a ContentRecord.
 
-    Used by the Discord and course-platform handlers — both ingest user-pasted
-    text where the file *is* the source. ``raw_text`` is the file content
-    verbatim; message-level parsing (authors, timestamps, threads) is deferred
-    to Phase 2 LLM extraction.
+    Used by handlers that ingest user-pasted text where the file *is* the source.
+    ``raw_text`` is the file content verbatim; message-level parsing (authors,
+    timestamps, threads) is deferred to Phase 2 LLM extraction.
     """
     sha, stored = store_file(path, source_type, storage_dir)
     return ContentRecord(

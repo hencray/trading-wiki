@@ -1,7 +1,4 @@
-"""Phase 2A v0.1 — Pass 1 (chunk + classify).
-
-See docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md.
-"""
+"""Phase 2A v0.1 — Pass 1 (chunk + classify)."""
 
 from itertools import pairwise
 from pathlib import Path

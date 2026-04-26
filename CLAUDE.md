@@ -15,9 +15,7 @@ What lives where:
 - **`trading_wiki/`** — Python package. `handlers/` (one file per source type, all subclass `BaseHandler`), `core/` (reusable mechanics: `db`, `storage`, `audio`, `transcribe`, `youtube`, `pasted_text`, `logging`, `secrets`), `cli.py` (still a `NotImplementedError` stub — Phase-2-prep), `config.py` (still empty — Phase-2-prep).
 - **`tests/`** — pytest suite, mirrors the package layout. TDD discipline: failing test before production code.
 - **`migrations/`** — numbered SQL files applied by `yoyo-migrations` via `core/db.py`.
-- **`brainstorm_edits_v1.md`** — historical patch document. Reference only.
 - **`content_inventory.example.md`** — template for tracking what content to ingest. Copy to `content_inventory.md` (gitignored) and fill in locally; never commit the filled version.
-- **`phase0_worksheet.md`** — optional Phase 0 template (skipped 2026-04-22).
 - **`.env.example`** — secrets template (real `.env` is gitignored).
 
 ## Common commands
@@ -46,10 +44,10 @@ If no strategies survive the Phase 5 backtest gauntlet, the wiki remains the del
 
 These are baked into `PROJECT_PLAN.md` but worth knowing up front:
 
-- **v1 course:** the v1 source content — 60-min bar system, intraday pivot-based
+- **v1 source content:** a 60-min bar intraday pivot-based trading system
 - **Asset class:** stocks only, universe = NASDAQ/QQQ constituents + a liquidity filter
 - **Timeframe v1:** 60-min intraday execution + nightly daily-chart scanning. Swing mode (daily + weekly) is a v2 goal.
-- **No Level 2 data** — v1 source's "watching it build" filter must use a volume proxy (Polygon 1-min data). L2 upgrade deferred pending Phase 5 Gate 6 results. This is the project's biggest codeability risk.
+- **No Level 2 data** — the v1 source's order-flow filter must use a volume proxy (Polygon 1-min data). L2 upgrade deferred pending Phase 5 Gate 6 results. This is the project's biggest codeability risk.
 - **Broker:** Alpaca (paper → live, same API). IBKR deferred.
 - **Market data:** Polygon.io Developer tier subscribed; Advanced tier (L2) is an escape hatch, not baseline.
 - **PDT rule** at <$25k account conflicts with intraday strategy + $1–2k starter capital — must be resolved by end of Phase 6.
@@ -58,7 +56,7 @@ These are baked into `PROJECT_PLAN.md` but worth knowing up front:
 
 Phase 0 (smoke test) → 1 (ingestion) → 2 (extraction) → 3 (wiki) → 4 (strategy formalization) → 5 (backtest gauntlet) → 5½ (dashboard) → 6 (paper, ≥6 weeks) → 7 (live, $1–2k starter).
 
-**Phase 0 was skipped 2026-04-22 by user decision** — the risk that v1 source is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front. This skip does not generalise: the remaining phases and gates are still non-negotiable.
+**Phase 0 was skipped 2026-04-22 by user decision** — the risk that the v1 source content is not cleanly codifiable is carried forward into Phase 1/2 rather than answered up front. This skip does not generalise: the remaining phases and gates are still non-negotiable.
 
 When working on any phase, consult the corresponding section of `PROJECT_PLAN.md`. Do not skip the remaining phases or gates. In particular:
 
@@ -86,7 +84,7 @@ Planned but not yet installed (add when the phase that needs them starts):
 - `pandas-ta` (pinned) for indicators — Phase 4
 - Streamlit — Phase 2B (review queue) and Phase 5½ (dashboard)
 
-Obsidian (Phase 3 wiki browsing) is a tool the user runs locally, not a Python dep. Pin versions when packages are added. Match TradingView conventions where v1 source examples depend on specific indicator behavior.
+Obsidian (Phase 3 wiki browsing) is a tool the user runs locally, not a Python dep. Pin versions when packages are added. Match TradingView conventions where the v1 source's examples depend on specific indicator behavior.
 
 ## When editing `PROJECT_PLAN.md`
 

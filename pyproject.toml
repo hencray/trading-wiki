@@ -1,7 +1,7 @@
 [project]
 name = "trading-wiki"
 version = "0.1.0"
-description = "Knowledge wiki + acid-test trading bot built on v1 source and other ingested trading content"
+description = "Framework for ingesting trading content, extracting structured knowledge with LLMs, and acid-testing strategies via backtest → paper → live"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "hencray" }]

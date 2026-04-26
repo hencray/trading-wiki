@@ -50,8 +50,10 @@ transcripts/cache/
 logs/
 *.log
 
-# Hand-reviews of extracted content — local-only by policy
+# Per-slice planning artifacts — local-only by policy (decision logs reveal source)
 docs/superpowers/reviews/
+docs/superpowers/plans/
+docs/superpowers/specs/
 
 # Real content inventory stays local; ship the .example template instead
 content_inventory.md

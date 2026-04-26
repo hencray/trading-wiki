@@ -9,10 +9,10 @@ _PREFIX = "course:"
 class CoursePlatformHandler(BaseHandler):
     """Ingest course-platform text the user has extracted to a local file.
 
-    Source format: ``course:<path>``. The user copies lesson text out of the
-    course platform UI (no platform-specific scraper) and the handler stores
-    it verbatim. Same shape as ``DiscordHandler`` — different ``source_type``
-    keeps the credibility tier and provenance distinct downstream.
+    Source format: ``course:<path>``. The user provides lesson text as a local
+    file (no platform-specific scraper) and the handler stores it verbatim.
+    Same shape as ``DiscordHandler`` — different ``source_type`` keeps the
+    credibility tier and provenance distinct downstream.
     """
 
     def __init__(self, storage_dir: Path) -> None:

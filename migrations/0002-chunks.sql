@@ -1,5 +1,4 @@
 -- Phase 2A v0.1: Pass 1 (chunk + classify) output table.
--- See docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md §5.1.
 
 CREATE TABLE chunks (
     id INTEGER PRIMARY KEY,

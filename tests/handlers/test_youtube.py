@@ -82,7 +82,7 @@ def test_ingest_records_video_metadata(tmp_path):
     info = {
         "id": "abc",
         "title": "Lesson 1",
-        "uploader": "v1 source",
+        "uploader": "TestChannel",
         "upload_date": "20260101",
     }
     handler, _ = _build_handler(tmp_path, info, "abc")

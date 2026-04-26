@@ -1,7 +1,4 @@
-"""Anthropic SDK wrapper. Owns auth, retries, JSON-mode-via-tool-use, usage logging.
-
-See docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md §5.5.
-"""
+"""Anthropic SDK wrapper. Owns auth, retries, JSON-mode-via-tool-use, usage logging."""
 
 from __future__ import annotations
 

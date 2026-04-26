@@ -11,14 +11,14 @@ def test_content_record_accepts_required_fields():
     record = ContentRecord(
         source_type="local_video",
         source_id="abc123",
-        title="v1 source lesson 1",
+        title="sample lesson 1",
         created_at=datetime(2026, 4, 1, 12, 0, 0),
         ingested_at=datetime(2026, 4, 22, 18, 0, 0),
         raw_text="Hello world.",
     )
     assert record.source_type == "local_video"
     assert record.source_id == "abc123"
-    assert record.title == "v1 source lesson 1"
+    assert record.title == "sample lesson 1"
     assert record.raw_text == "Hello world."
 
 
@@ -93,11 +93,11 @@ def test_content_record_optional_fields_default_to_none_or_empty():
 def test_content_record_accepts_optional_fields():
     record = ContentRecord(
         **_minimal_record_kwargs(),
-        author="the v1 author",
+        author="Test Author",
         parent_id="course-module-3",
         metadata={"duration_seconds": 1234, "channel": "test-channel"},
     )
-    assert record.author == "the v1 author"
+    assert record.author == "Test Author"
     assert record.parent_id == "course-module-3"
     assert record.metadata == {"duration_seconds": 1234, "channel": "test-channel"}
 

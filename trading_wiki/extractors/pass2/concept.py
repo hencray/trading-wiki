@@ -1,7 +1,4 @@
-"""Phase 2A v0.2 — Pass 2 Concept extractor.
-
-See docs/superpowers/specs/2026-04-25-phase-2a-pass2-design.md.
-"""
+"""Phase 2A v0.2 — Pass 2 Concept extractor."""
 
 from pathlib import Path
 from typing import Literal
