@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -241,3 +243,17 @@ class TestPass2Cli:
         with pytest.raises(SystemExit) as ei:
             main([])
         assert ei.value.code != 0
+
+    def test_python_m_entry_runs_help(self):
+        # `python -m pkg` requires a `__main__.py`; the `if __name__ == "__main__"`
+        # guard in `__init__.py` is never reached for package execution.
+        result = subprocess.run(
+            [sys.executable, "-m", "trading_wiki.extractors.pass2", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"`python -m trading_wiki.extractors.pass2 --help` failed: "
+            f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+        assert "--content-id" in result.stdout

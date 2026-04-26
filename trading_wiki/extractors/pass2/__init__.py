@@ -148,7 +148,3 @@ def main(argv: list[str] | None = None) -> int:
         f"cost ≈ ${summary.total_cost_usd:.4f}."
     )
     return 0
-
-
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
