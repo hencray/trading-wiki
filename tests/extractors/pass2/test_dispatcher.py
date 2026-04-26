@@ -11,7 +11,7 @@ from trading_wiki.core.db import (
 )
 from trading_wiki.core.llm import UsageRecord
 from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
-from trading_wiki.extractors.pass2 import Pass2Summary, extract
+from trading_wiki.extractors.pass2 import Pass2Summary, extract, main
 from trading_wiki.extractors.pass2.concept import Concept
 from trading_wiki.extractors.pass2.trade_example import TradeExample
 from trading_wiki.handlers.base import ContentRecord, Segment
@@ -219,3 +219,25 @@ class TestExtractDispatcher:
 
         with pytest.raises(RuntimeError, match="run Pass 1 first"):
             extract(content_id=content_id, db_path=db_path)
+
+
+class TestPass2Cli:
+    @patch("trading_wiki.extractors.pass2.extract")
+    def test_main_invokes_extract_with_content_id(self, mock_extract):
+        mock_extract.return_value = Pass2Summary(
+            chunks_seen=5,
+            chunks_routed=3,
+            trade_examples_written=2,
+            concepts_written=4,
+            total_input_tokens=300,
+            total_output_tokens=150,
+            total_cost_usd=0.005,
+        )
+        exit_code = main(["--content-id", "7"])
+        assert exit_code == 0
+        mock_extract.assert_called_once_with(content_id=7)
+
+    def test_main_missing_content_id_exits_nonzero(self):
+        with pytest.raises(SystemExit) as ei:
+            main([])
+        assert ei.value.code != 0

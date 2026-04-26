@@ -122,3 +122,33 @@ def extract(*, content_id: int, db_path: Path | None = None) -> Pass2Summary:
         total_cost_usd=summary.total_cost_usd,
     )
     return summary
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass2",
+        description="Run Pass 2 (TradeExample + Concept extraction) on a single content_id.",
+    )
+    parser.add_argument(
+        "--content-id",
+        type=int,
+        required=True,
+        help="The content.id whose Pass 1 chunks to extract entities from.",
+    )
+    args = parser.parse_args(argv)
+    summary = extract(content_id=args.content_id)
+    print(
+        f"Pass 2 for content_id={args.content_id}: "
+        f"{summary.chunks_routed}/{summary.chunks_seen} chunks routed; "
+        f"{summary.trade_examples_written} trade examples + "
+        f"{summary.concepts_written} concepts written; "
+        f"{len(summary.failed_chunks)} failed chunks; "
+        f"cost ≈ ${summary.total_cost_usd:.4f}."
+    )
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
