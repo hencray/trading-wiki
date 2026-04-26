@@ -388,3 +388,30 @@ def list_trade_examples_for_content(
             (content_id,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def list_concepts_for_content(
+    db_path: Path | str,
+    *,
+    content_id: int,
+) -> list[dict[str, Any]]:
+    """Return concepts whose source chunk belongs to ``content_id``.
+
+    JSON-decodes ``related_terms`` so callers get a Python list.
+    """
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT c.* FROM concepts c
+            JOIN chunks ch ON ch.id = c.source_chunk_id
+            WHERE ch.content_id = ?
+            ORDER BY c.id
+            """,
+            (content_id,),
+        ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["related_terms"] = json.loads(row_dict["related_terms"])
+            result.append(row_dict)
+        return result

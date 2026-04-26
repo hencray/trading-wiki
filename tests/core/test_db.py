@@ -6,15 +6,18 @@ import pytest
 
 from trading_wiki.core.db import (
     apply_migrations,
+    list_concepts_for_content,
     list_content_summaries,
     list_trade_examples_for_content,
     load_chunks_for_version,
     load_content_record,
     save_chunks,
+    save_concepts,
     save_content_record,
     save_trade_examples,
 )
 from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+from trading_wiki.extractors.pass2.concept import Concept, ConceptOutput
 from trading_wiki.extractors.pass2.trade_example import TradeExample, TradeExampleOutput
 from trading_wiki.handlers.base import ContentRecord, Segment
 
@@ -985,3 +988,68 @@ def test_list_trade_examples_for_content_returns_only_matching_content(tmp_path)
     assert rows_a[0]["ticker"] == "AAPL"
     assert rows_a[0]["source_chunk_id"] == chunk_a["id"]
     assert rows_b == []
+
+
+def test_list_concepts_for_content_returns_decoded_related_terms(tmp_path):
+    db_path = tmp_path / "test.db"
+    apply_migrations(db_path)
+    cid = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="a",
+            title="A",
+            author=None,
+            created_at=datetime(2026, 4, 1),
+            ingested_at=datetime(2026, 4, 22),
+            raw_text="vwap is volume weighted",
+            segments=[
+                Segment(
+                    seq=0,
+                    text="vwap is volume weighted",
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                )
+            ],
+        ),
+    )
+    save_chunks(
+        db_path,
+        content_id=cid,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="concept",
+                    confidence="high",
+                    summary="vwap concept",
+                ),
+            ]
+        ),
+    )
+    chunk = load_chunks_for_version(db_path, content_id=cid, prompt_version="pass1-v1")[0]
+    save_concepts(
+        db_path,
+        source_chunk_id=chunk["id"],
+        prompt_version="pass2-concept-v1",
+        output=ConceptOutput(
+            entities=[
+                Concept(
+                    term="VWAP",
+                    definition="volume-weighted average price across the session",
+                    related_terms=["vwap", "average price"],
+                    confidence="high",
+                )
+            ]
+        ),
+    )
+
+    rows = list_concepts_for_content(db_path, content_id=cid)
+
+    assert len(rows) == 1
+    assert rows[0]["term"] == "VWAP"
+    assert rows[0]["related_terms"] == ["vwap", "average price"]
+    assert rows[0]["source_chunk_id"] == chunk["id"]
