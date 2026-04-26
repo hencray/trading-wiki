@@ -14,6 +14,7 @@ dependencies = [
     "pydantic-settings>=2.14.0",
     "openai>=2.32.0",
     "yt-dlp>=2026.3.17",
+    "anthropic>=0.39.0",
 ]
 
 [project.scripts]
@@ -98,6 +99,10 @@ addopts = [
     "--cov=trading_wiki",
     "--cov-report=term-missing",
     "--cov-report=xml",
+    "-m", "not integration",
+]
+markers = [
+    "integration: opt-in tests that hit the real Anthropic API. Run with `pytest -m integration`.",
 ]
 
 [tool.coverage.run]
