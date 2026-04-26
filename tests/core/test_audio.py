@@ -65,3 +65,34 @@ def test_extract_audio_overwrites_existing_output(tmp_path):
     extract_audio_to_mp3(video, out)
 
     assert out.read_bytes() != b"stale data that should be replaced"
+
+
+def test_extract_audio_bitrate_fits_long_videos(tmp_path):
+    """Bitrate should be low enough that 3+ hours of audio fits under
+    the Whisper 25 MiB limit. 16 kbps gives ~21.6 MB for 3 hours.
+    """
+    video = tmp_path / "test.mp4"
+    _make_silent_video(video, duration=2.0)
+    out = tmp_path / "out.mp3"
+    extract_audio_to_mp3(video, out)
+
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=bit_rate",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    bitrate_bps = int(result.stdout.strip())
+    # Expect ~16000 bps; allow generous range for codec frame variation.
+    assert bitrate_bps <= 20000, f"bitrate {bitrate_bps} bps exceeds 20 kbps cap"
