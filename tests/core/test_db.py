@@ -63,6 +63,158 @@ def test_load_content_record_returns_none_when_missing(tmp_path):
     assert loaded is None
 
 
+def test_content_exists(tmp_path):
+    from trading_wiki.core.db import content_exists
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    assert content_exists(db_path, content_id=1) is False
+
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="x")],
+    )
+    cid = save_content_record(db_path, record)
+    assert content_exists(db_path, content_id=cid) is True
+
+
+def test_load_segments_for_content_id(tmp_path):
+    from trading_wiki.core.db import load_segments_for_content_id
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    record = ContentRecord(
+        source_type="t",
+        source_id="a",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[
+            Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0),
+            Segment(seq=1, text="world", start_seconds=1.0, end_seconds=2.0),
+        ],
+    )
+    cid = save_content_record(db_path, record)
+    segs = load_segments_for_content_id(db_path, content_id=cid)
+    assert [s.seq for s in segs] == [0, 1]
+    assert segs[0].text == "hello"
+    assert segs[1].start_seconds == 1.0
+    assert load_segments_for_content_id(db_path, content_id=999) == []
+
+
+def test_save_and_load_chunks(tmp_path):
+    from trading_wiki.core.db import load_chunks_for_version, save_chunks
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+
+    record = ContentRecord(
+        source_type="test",
+        source_id="vid1",
+        title="Test",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="hello world",
+        segments=[
+            Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0),
+            Segment(seq=1, text="world", start_seconds=1.0, end_seconds=2.0),
+        ],
+    )
+    content_id = save_content_record(db_path, record)
+
+    output = Pass1Output(
+        chunks=[
+            Pass1Chunk(
+                seq=0,
+                start_seg_seq=0,
+                end_seg_seq=1,
+                label="noise",
+                confidence="high",
+                summary="greeting",
+            ),
+        ]
+    )
+    save_chunks(db_path, content_id=content_id, prompt_version="pass1-v1", output=output)
+
+    rows = load_chunks_for_version(db_path, content_id=content_id, prompt_version="pass1-v1")
+    assert len(rows) == 1
+    assert rows[0]["seq"] == 0
+    assert rows[0]["label"] == "noise"
+    assert rows[0]["summary"] == "greeting"
+    assert rows[0]["start_seconds"] == 0.0
+    assert rows[0]["end_seconds"] == 2.0
+    assert rows[0]["text"] == "hello\nworld"
+
+    assert load_chunks_for_version(db_path, content_id=content_id, prompt_version="pass1-v2") == []
+
+
+def test_save_chunks_rolls_back_on_error(tmp_path):
+    from trading_wiki.core.db import load_chunks_for_version, save_chunks
+    from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+
+    record = ContentRecord(
+        source_type="test",
+        source_id="vid1",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="hello",
+        segments=[Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0)],
+    )
+    content_id = save_content_record(db_path, record)
+
+    output1 = Pass1Output(
+        chunks=[
+            Pass1Chunk(
+                seq=0,
+                start_seg_seq=0,
+                end_seg_seq=0,
+                label="noise",
+                confidence="high",
+                summary="x",
+            ),
+        ]
+    )
+    save_chunks(db_path, content_id=content_id, prompt_version="v1", output=output1)
+
+    output2 = Pass1Output(
+        chunks=[
+            Pass1Chunk(
+                seq=0,
+                start_seg_seq=0,
+                end_seg_seq=0,
+                label="strategy",
+                confidence="high",
+                summary="y",
+            ),
+            Pass1Chunk(
+                seq=1,
+                start_seg_seq=0,
+                end_seg_seq=0,
+                label="concept",
+                confidence="high",
+                summary="z",
+            ),
+        ]
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        save_chunks(db_path, content_id=content_id, prompt_version="v1", output=output2)
+
+    rows = load_chunks_for_version(db_path, content_id=content_id, prompt_version="v1")
+    assert len(rows) == 1
+    assert rows[0]["label"] == "noise"
+
+
 def test_migration_0002_creates_chunks_table(tmp_path):
     """0002 creates a chunks table with the columns and CHECK constraints from spec §5.1."""
     db_path = tmp_path / "research.db"

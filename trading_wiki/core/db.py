@@ -4,10 +4,14 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from yoyo import get_backend, read_migrations
 
 from trading_wiki.handlers.base import ContentRecord, Segment
+
+if TYPE_CHECKING:
+    from trading_wiki.extractors.pass1 import Pass1Output
 
 _MIGRATIONS_DIR = Path(__file__).parent.parent.parent / "migrations"
 
@@ -119,3 +123,103 @@ def load_content_record(
             segments=segments,
             metadata=json.loads(row["metadata"]),
         )
+
+
+def content_exists(db_path: Path | str, *, content_id: int) -> bool:
+    """Return whether a content row with the given id exists."""
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT 1 FROM content WHERE id = ?", (content_id,)).fetchone()
+        return row is not None
+
+
+def load_segments_for_content_id(
+    db_path: Path | str,
+    *,
+    content_id: int,
+) -> list[Segment]:
+    """Load all segments for a given content_id, ordered by seq."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT seq, text, start_seconds, end_seconds FROM segments "
+            "WHERE content_id = ? ORDER BY seq",
+            (content_id,),
+        ).fetchall()
+        return [
+            Segment(
+                seq=r["seq"],
+                text=r["text"],
+                start_seconds=r["start_seconds"],
+                end_seconds=r["end_seconds"],
+            )
+            for r in rows
+        ]
+
+
+def save_chunks(
+    db_path: Path | str,
+    *,
+    content_id: int,
+    prompt_version: str,
+    output: "Pass1Output",
+) -> None:
+    """Write all chunks from a Pass1Output in a single transaction.
+
+    Denormalises start_seconds / end_seconds / text from the segments table.
+    Raises sqlite3.IntegrityError on UNIQUE violation; the transaction is
+    rolled back so partial writes don't land.
+    """
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        seg_rows = conn.execute(
+            "SELECT seq, start_seconds, end_seconds, text FROM segments "
+            "WHERE content_id = ? ORDER BY seq",
+            (content_id,),
+        ).fetchall()
+        seg_meta = {r["seq"]: (r["start_seconds"], r["end_seconds"], r["text"]) for r in seg_rows}
+
+        for chunk in output.chunks:
+            start_secs = seg_meta.get(chunk.start_seg_seq, (None, None, ""))[0]
+            end_secs = seg_meta.get(chunk.end_seg_seq, (None, None, ""))[1]
+            text = "\n".join(
+                seg_meta[seq][2]
+                for seq in range(chunk.start_seg_seq, chunk.end_seg_seq + 1)
+                if seq in seg_meta
+            )
+            conn.execute(
+                """
+                INSERT INTO chunks (
+                    content_id, seq, start_seg_seq, end_seg_seq,
+                    start_seconds, end_seconds, label, confidence,
+                    summary, text, prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    content_id,
+                    chunk.seq,
+                    chunk.start_seg_seq,
+                    chunk.end_seg_seq,
+                    start_secs,
+                    end_secs,
+                    chunk.label,
+                    chunk.confidence,
+                    chunk.summary,
+                    text,
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_chunks_for_version(
+    db_path: Path | str,
+    *,
+    content_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return chunk rows for ``(content_id, prompt_version)`` ordered by seq."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM chunks WHERE content_id = ? AND prompt_version = ? ORDER BY seq",
+            (content_id, prompt_version),
+        ).fetchall()
+        return [dict(row) for row in rows]

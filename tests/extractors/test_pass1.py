@@ -250,6 +250,30 @@ class TestValidateCoverage:
             validate_coverage(out, segment_count=11)
 
 
+class TestBuildTranscriptText:
+    def test_formats_segments_with_seq_and_seconds(self):
+        from trading_wiki.extractors.pass1 import build_transcript_text
+        from trading_wiki.handlers.base import Segment
+
+        segs = [
+            Segment(seq=0, text="Welcome back.", start_seconds=0.0, end_seconds=4.2),
+            Segment(seq=1, text="Pivot points.", start_seconds=4.2, end_seconds=10.1),
+        ]
+        out = build_transcript_text(segs)
+        assert "[seg 0] (0.0s-4.2s) Welcome back." in out
+        assert "[seg 1] (4.2s-10.1s) Pivot points." in out
+
+    def test_handles_missing_seconds(self):
+        from trading_wiki.extractors.pass1 import build_transcript_text
+        from trading_wiki.handlers.base import Segment
+
+        segs = [Segment(seq=0, text="No timing.")]
+        out = build_transcript_text(segs)
+        assert "[seg 0]" in out
+        assert "No timing." in out
+        assert "s-" not in out
+
+
 class TestConfig:
     def test_pass1_constants_and_prompt_path(self):
         from trading_wiki.config import (

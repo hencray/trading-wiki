@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from trading_wiki.handlers.base import StrictModel
+from trading_wiki.handlers.base import Segment, StrictModel
 
 Label = Literal[
     "strategy",
@@ -78,3 +78,15 @@ def validate_coverage(output: Pass1Output, *, segment_count: int) -> None:
                 f"and chunk {curr.seq} (starts at seg {curr.start_seg_seq}); "
                 f"missing segments {expected_start}..{curr.start_seg_seq - 1}"
             )
+
+
+def build_transcript_text(segments: list[Segment]) -> str:
+    """Format segments as ``[seg N] (start.s-end.s) text`` lines for the LLM prompt."""
+    lines: list[str] = []
+    for s in segments:
+        if s.start_seconds is not None and s.end_seconds is not None:
+            timing = f"({s.start_seconds:.1f}s-{s.end_seconds:.1f}s) "
+        else:
+            timing = ""
+        lines.append(f"[seg {s.seq}] {timing}{s.text}")
+    return "\n".join(lines)
