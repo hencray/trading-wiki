@@ -2,7 +2,7 @@
 
 *Started: April 16, 2026*
 *Last updated: 2026-04-25*
-*Status: **Phase 1 complete (9/9), Phase 2A v0.1 in progress.** Pass 1 (chunk + classify) implementation landed: `core/llm.py`, `extractors/pass1.py`, migration 0002 (`chunks` table), prompts/pass1.md, populated `config.py`. 129 unit tests at 98% coverage, sub-2.5s. Integration test is opt-in (`pytest -m integration`); v0.1 ships when a real v1 source video is transcribed and the chunks pass the §2(5) human-review bar. CLI dispatcher remains a Phase-2-prep follow-up, not a v0.1 gate.*
+*Status: **Phase 1 complete, Phase 2A v0.1 SHIPPED.** Pass 1 (chunk + classify) implementation landed and validated end-to-end against the v1 source (Tier 1 source) Part 01 (`content_id=2`) and Part 02 (`content_id=1`). Each part = 60-min slice, 17 chunks, total ingestion + Pass 1 cost ≈ $0.50 per part. `pass1-v1` prompt locked. 130 unit tests + 1 integration test, 98% coverage. CLI dispatcher (`cli.py`) and Phase 2A v0.2 (Pass 2 — entity extraction) are the next slices.*
 
 **Status legend:** 🔲 Not started · 🟡 Planning · 🟠 In progress · 🟢 Complete · ⚫ Archived
 
@@ -443,7 +443,7 @@ Every extracted fact keeps: `content_id`, `timestamp`/location, `excerpt`. So we
 
 **Storage:** SQLite + `sqlite-vec` for embeddings (one-file simplicity). Move to Postgres if graph scale demands.
 
-**Status:** 🟠 In progress (Phase 2A v0.1 — Pass 1)
+**Status:** 🟠 In progress (Phase 2A v0.1 — Pass 1 — **SHIPPED 2026-04-25**; v0.2 Pass 2 next)
 
 ---
 
@@ -1370,7 +1370,8 @@ Those are valuable regardless. The bot making money is the cherry, not the point
 - **PDF / EPUB / article stubs** (2026-04-25): `PdfHandler` / `EpubHandler` / `ArticleHandler` implement the `BaseHandler` interface. `can_handle` returns the right boolean (`.pdf`, `.epub`, `http(s)://` respectively); `ingest` raises `NotImplementedError("… deferred to post-Phase-1")`. Excluded from coverage by the existing `raise NotImplementedError` rule in `pyproject.toml`. `ArticleHandler.can_handle` is intentionally broad — overlap with `YoutubeHandler` on YouTube URLs is the CLI dispatcher's concern, not the handler's.
 
 ### Phase 2
-- **Phase 2A v0.1 = Pass 1 only, one Tier 1 video** (2026-04-25). Vertical slice: chunk + classify a single v1 source video with Sonnet 4.6, write to a new `chunks` table, human-review the output before committing to Pass 2 schemas. Embeddings, entity extraction, resolution, relationships, review UI, and chart pipeline all explicitly deferred to later slices. Implementation landed: `core/llm.py` (schema-via-tool-use Anthropic SDK wrapper), `extractors/pass1.py` (transcript builder, coverage validator, idempotent `extract()`), migration `0002-chunks.sql`, `prompts/pass1.md` (version-stamped via `PROMPT_VERSION_PASS1`). Spec at `docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md`; plan at `docs/superpowers/plans/2026-04-25-phase-2a-pass1.md`. v0.1 isn't shipped until a real v1 source video is transcribed and the resulting chunks pass the §2(5) human-review bar; chunks may need 1–2 prompt iterations (bump `PROMPT_VERSION_PASS1` per iteration) before they're usable.
+- **Phase 2A v0.1 = Pass 1 only, one Tier 1 video — SHIPPED 2026-04-25.** Vertical slice: chunk + classify a real Tier 1 video with Sonnet 4.6, write to a new `chunks` table. Implementation: `core/llm.py` (schema-via-tool-use Anthropic SDK wrapper), `extractors/pass1.py` (transcript builder, coverage validator, idempotent `extract()`), migration `0002-chunks.sql`, `prompts/pass1.md` (version-stamped via `PROMPT_VERSION_PASS1`). Spec: `docs/superpowers/specs/2026-04-25-phase-2a-pass1-design.md`. Plan: `docs/superpowers/plans/2026-04-25-phase-2a-pass1.md`. **v0.1 validation:** v1 source primary videos (`content_id=2`) and Part 02 (`content_id=1`) ingested + chunked at `prompt_version=pass1-v1`; **first prompt iteration passed §2(5) review without revision.** Pass 1 produced 17 sensibly-labeled chunks per 60-min part, with two `medium`-confidence flags falling on borderline transitional content (correctly hedged). Schema-validation retry logic worked as designed: Part 02's first call had 12 over-length summaries; the retry-with-feedback fixed all of them. Embeddings, entity extraction, resolution, relationships, review UI, and chart pipeline remain deferred to later slices. **Next slice: v0.2 = Pass 2 (entity extraction → Strategy/Setup/Concept JSON).**
+- **Phase 1 follow-up surfaced 2026-04-25:** `core/audio.py` default of 32 kbps mono mp3 produced files exceeding Whisper's 25 MiB sync upload limit for 3+ hour videos. Lowered to 16 kbps in commit `28f81ab`; new test asserts via ffprobe so the regression can't recur silently. Whisper also exhibits a hallucination loop on long silent audio (it transcribed a 10-min break in Part 02 as a single sentence repeated dozens of times, which Pass 1 correctly labeled `noise` but the underlying transcript is unusable for Pass 2). Acceptable for v0.1; revisit if Pass 2 starts pulling junk content from `noise`-labeled chunks.
 - **LLM tiering:** Stakes-based — Opus 4.7 for high-stakes judgment (entity resolution of Tier 1 content, codeability scoring, strategy formalization), Sonnet 4.6 for everything else, Haiku 4.5 as future optimization
 - **Extraction strategy:** Extract everything, tag low-confidence for review (not aggressive filtering)
 - **Architecture:** Multi-pass pipeline (Classify → Extract → Resolve → Relate)
