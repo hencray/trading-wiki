@@ -1,7 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
-from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+from trading_wiki.extractors.pass1 import (
+    CoverageError,
+    Pass1Chunk,
+    Pass1Output,
+    validate_coverage,
+)
 
 
 class TestPass1Chunk:
@@ -91,3 +96,155 @@ class TestPass1Output:
             ]
         )
         assert len(out.chunks) == 2
+
+
+def _good_output() -> Pass1Output:
+    return Pass1Output(
+        chunks=[
+            Pass1Chunk(
+                seq=0,
+                start_seg_seq=0,
+                end_seg_seq=2,
+                label="noise",
+                confidence="high",
+                summary="intro",
+            ),
+            Pass1Chunk(
+                seq=1,
+                start_seg_seq=3,
+                end_seg_seq=10,
+                label="strategy",
+                confidence="medium",
+                summary="entry rules",
+            ),
+        ]
+    )
+
+
+class TestValidateCoverage:
+    def test_passes_for_well_formed_output(self):
+        validate_coverage(_good_output(), segment_count=11)
+
+    def test_empty_chunks_rejected(self):
+        with pytest.raises(CoverageError, match="empty"):
+            validate_coverage(Pass1Output(chunks=[]), segment_count=10)
+
+    def test_first_chunk_must_start_at_zero(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=1,
+                    end_seg_seq=10,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="must start at segment 0"):
+            validate_coverage(out, segment_count=11)
+
+    def test_last_chunk_must_cover_final_segment(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=8,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="last segment"):
+            validate_coverage(out, segment_count=11)
+
+    def test_gap_between_chunks_rejected(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=2,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+                Pass1Chunk(
+                    seq=1,
+                    start_seg_seq=4,
+                    end_seg_seq=10,
+                    label="strategy",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="gap"):
+            validate_coverage(out, segment_count=11)
+
+    def test_overlap_between_chunks_rejected(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=5,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+                Pass1Chunk(
+                    seq=1,
+                    start_seg_seq=3,
+                    end_seg_seq=10,
+                    label="strategy",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="overlap"):
+            validate_coverage(out, segment_count=11)
+
+    def test_seq_must_be_sequential_zero_indexed(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=1,
+                    start_seg_seq=0,
+                    end_seg_seq=2,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+                Pass1Chunk(
+                    seq=2,
+                    start_seg_seq=3,
+                    end_seg_seq=10,
+                    label="strategy",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="seq"):
+            validate_coverage(out, segment_count=11)
+
+    def test_start_after_end_rejected(self):
+        out = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=5,
+                    end_seg_seq=2,
+                    label="noise",
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        )
+        with pytest.raises(CoverageError, match="start_seg_seq"):
+            validate_coverage(out, segment_count=11)
