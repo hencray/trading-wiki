@@ -269,3 +269,100 @@ def test_migration_0002_creates_chunks_table(tmp_path):
         conn.execute(good, (content_id,))
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(good, (content_id,))
+
+
+def test_migration_0003_creates_trade_examples_table(tmp_path):
+    """0003 creates a trade_examples table with the columns and CHECK constraints from spec §5.1."""
+    import sqlite3
+
+    from trading_wiki.core.db import apply_migrations
+
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(trade_examples)").fetchall()}
+        assert cols == {
+            "id",
+            "source_chunk_id",
+            "ticker",
+            "direction",
+            "instrument_type",
+            "trade_date",
+            "entry_price",
+            "stop_price",
+            "target_price",
+            "exit_price",
+            "entry_description",
+            "exit_description",
+            "outcome_text",
+            "outcome_classification",
+            "lessons",
+            "confidence",
+            "prompt_version",
+            "created_at",
+        }
+
+        # Seed a content + chunk so the FK resolves.
+        conn.execute(
+            "INSERT INTO content "
+            "(source_type, source_id, title, created_at, ingested_at, raw_text) "
+            "VALUES ('test', 'a', 't', '2026-01-01', '2026-01-01', 'r')"
+        )
+        content_id = conn.execute("SELECT id FROM content").fetchone()[0]
+        conn.execute(
+            "INSERT INTO chunks (content_id, seq, start_seg_seq, end_seg_seq, "
+            "label, confidence, summary, text, prompt_version, created_at) "
+            "VALUES (?, 0, 0, 0, 'example', 'high', 's', 't', 'pass1-v1', '2026-01-01')",
+            (content_id,),
+        )
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+
+        ok_insert = (
+            "INSERT INTO trade_examples (source_chunk_id, ticker, direction, instrument_type, "
+            "entry_description, exit_description, outcome_text, confidence, "
+            "prompt_version, created_at) "
+            "VALUES (?, 'NVDA', 'long', 'stock', 'in at 850', 'out at 858', "
+            "'won', 'high', 'v', '2026-01-01')"
+        )
+        conn.execute(ok_insert, (chunk_id,))
+
+        # CHECK constraint on direction rejects unknown values.
+        bad_dir = (
+            "INSERT INTO trade_examples (source_chunk_id, ticker, direction, instrument_type, "
+            "entry_description, exit_description, outcome_text, confidence, "
+            "prompt_version, created_at) "
+            "VALUES (?, 'NVDA', 'sideways', 'stock', 'i', 'o', 'w', 'high', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_dir, (chunk_id,))
+
+        # CHECK constraint on instrument_type rejects unknown values.
+        bad_inst = (
+            "INSERT INTO trade_examples (source_chunk_id, ticker, direction, instrument_type, "
+            "entry_description, exit_description, outcome_text, confidence, "
+            "prompt_version, created_at) "
+            "VALUES (?, 'NVDA', 'long', 'commodity', 'i', 'o', 'w', 'high', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_inst, (chunk_id,))
+
+        # CHECK constraint on outcome_classification accepts NULL but rejects bad values.
+        bad_outcome = (
+            "INSERT INTO trade_examples (source_chunk_id, ticker, direction, instrument_type, "
+            "entry_description, exit_description, outcome_text, outcome_classification, "
+            "confidence, prompt_version, created_at) "
+            "VALUES (?, 'NVDA', 'long', 'stock', 'i', 'o', 'w', 'maybe', 'high', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_outcome, (chunk_id,))
+
+        # CHECK constraint on confidence rejects unknown values.
+        bad_conf = (
+            "INSERT INTO trade_examples (source_chunk_id, ticker, direction, instrument_type, "
+            "entry_description, exit_description, outcome_text, confidence, "
+            "prompt_version, created_at) "
+            "VALUES (?, 'NVDA', 'long', 'stock', 'i', 'o', 'w', 'mid', 'v', '2026-01-01')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(bad_conf, (chunk_id,))
