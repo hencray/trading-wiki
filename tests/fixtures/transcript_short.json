@@ -1,0 +1,25 @@
+{
+  "title": "v1 source — Synthetic short transcript (test fixture)",
+  "segments": [
+    {"seq": 0, "text": "Welcome back, today we're going to talk about pivot points.", "start_seconds": 0.0, "end_seconds": 4.2},
+    {"seq": 1, "text": "Specifically the way I trade them on the 60-min chart.", "start_seconds": 4.2, "end_seconds": 10.1},
+    {"seq": 2, "text": "But first, a quick word from our sponsor, BrokerCo.", "start_seconds": 10.1, "end_seconds": 18.0},
+    {"seq": 3, "text": "BrokerCo gives you commission-free trading and a free month with code v1 source.", "start_seconds": 18.0, "end_seconds": 26.4},
+    {"seq": 4, "text": "OK, back to pivots. A pivot is the prior period's high, low, and close averaged.", "start_seconds": 26.4, "end_seconds": 35.0},
+    {"seq": 5, "text": "We use it as a key intraday level. Above pivot, we're long-biased.", "start_seconds": 35.0, "end_seconds": 42.5},
+    {"seq": 6, "text": "Below pivot, short-biased. The setup I trade is called the Pullback Hold.", "start_seconds": 42.5, "end_seconds": 50.0},
+    {"seq": 7, "text": "Entry: stock opens above pivot, pulls back to pivot in the first hour, holds.", "start_seconds": 50.0, "end_seconds": 60.0},
+    {"seq": 8, "text": "Volume confirms - we want to see the pullback on declining volume.", "start_seconds": 60.0, "end_seconds": 68.0},
+    {"seq": 9, "text": "Stop: 1 ATR below the pivot. Target: prior day's high.", "start_seconds": 68.0, "end_seconds": 75.0},
+    {"seq": 10, "text": "Let's look at NVDA on March 5th - classic Pullback Hold setup.", "start_seconds": 75.0, "end_seconds": 82.0},
+    {"seq": 11, "text": "Opened at 850, pivot was 845, pulled back to 845.50 by 10:30.", "start_seconds": 82.0, "end_seconds": 91.0},
+    {"seq": 12, "text": "I entered at 846 with stop at 843 and target 858 - prior day high.", "start_seconds": 91.0, "end_seconds": 99.0},
+    {"seq": 13, "text": "Closed at 857.50 a few hours later. About 11 R-multiples on the trade.", "start_seconds": 99.0, "end_seconds": 107.0},
+    {"seq": 14, "text": "Now, the most important thing - and people miss this - is discipline.", "start_seconds": 107.0, "end_seconds": 114.0},
+    {"seq": 15, "text": "If you don't journal every trade, you can't see your real edge.", "start_seconds": 114.0, "end_seconds": 121.0},
+    {"seq": 16, "text": "Question from chat: what do you do if the pullback is on rising volume?", "start_seconds": 121.0, "end_seconds": 128.0},
+    {"seq": 17, "text": "Great question. Rising volume on the pullback means I skip the trade.", "start_seconds": 128.0, "end_seconds": 135.0},
+    {"seq": 18, "text": "It tells me sellers are still active and the level may not hold.", "start_seconds": 135.0, "end_seconds": 142.0},
+    {"seq": 19, "text": "Alright, that's it for today. Subscribe and I'll see you tomorrow.", "start_seconds": 142.0, "end_seconds": 150.0}
+  ]
+}
