@@ -1,10 +1,25 @@
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 
+from trading_wiki.core.db import (
+    apply_migrations,
+    load_trade_examples_for_version,
+    save_chunks,
+    save_content_record,
+)
+from trading_wiki.core.llm import UsageRecord
+from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
 from trading_wiki.extractors.pass2.trade_example import (
     TradeExample,
     TradeExampleOutput,
+    extract_trade_examples_for_chunk,
 )
+from trading_wiki.handlers.base import ContentRecord, Segment
 
 
 class TestTradeExample:
@@ -176,3 +191,176 @@ class TestTradeExampleOutput:
             ]
         )
         assert len(out.entities) == 2
+
+
+# ───────────────────────── extractor tests (LLM mocked) ─────────────────────────
+
+
+def _seed_chunk(db_path: Path, label: str = "example") -> int:
+    """Insert a content + one chunk with the given label. Return chunk_id."""
+    record = ContentRecord(
+        source_type="test",
+        source_id=f"vid-{label}",
+        title="t",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="r",
+        segments=[Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0)],
+    )
+    content_id = save_content_record(db_path, record)
+    save_chunks(
+        db_path,
+        content_id=content_id,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label=label,
+                    confidence="high",
+                    summary="x",
+                ),
+            ]
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        chunk_id: int = conn.execute("SELECT id FROM chunks").fetchone()[0]
+        return chunk_id
+
+
+def _stub_usage(
+    input_tokens: int = 100,
+    output_tokens: int = 50,
+    cost: float = 0.001,
+) -> UsageRecord:
+    return UsageRecord(
+        model="claude-sonnet-4-6",
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_estimate_usd=cost,
+    )
+
+
+class TestExtractTradeExamplesForChunk:
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_happy_path_writes_rows_and_returns_entities(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        out = TradeExampleOutput(
+            entities=[
+                TradeExample(
+                    ticker="NVDA",
+                    direction="long",
+                    instrument_type="stock",
+                    entry_description="i",
+                    exit_description="o",
+                    outcome_text="w",
+                    confidence="high",
+                ),
+            ]
+        )
+        mock_call.return_value = (out, _stub_usage(), [])
+
+        entities, usage = extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+        )
+        assert len(entities) == 1
+        assert entities[0].ticker == "NVDA"
+        assert usage.input_tokens == 100
+
+        rows = load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-trade-example-v1",
+        )
+        assert len(rows) == 1
+        assert rows[0]["ticker"] == "NVDA"
+        mock_call.assert_called_once()
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_empty_entities_writes_no_rows(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        mock_call.return_value = (TradeExampleOutput(entities=[]), _stub_usage(), [])
+
+        entities, _ = extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+        )
+        assert entities == []
+        rows = load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version="pass2-trade-example-v1",
+        )
+        assert rows == []
+        mock_call.assert_called_once()
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_idempotent_skips_when_rows_already_exist(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        out = TradeExampleOutput(
+            entities=[
+                TradeExample(
+                    ticker="NVDA",
+                    direction="long",
+                    instrument_type="stock",
+                    entry_description="i",
+                    exit_description="o",
+                    outcome_text="w",
+                    confidence="high",
+                ),
+            ]
+        )
+        mock_call.return_value = (out, _stub_usage(), [])
+
+        # First call hits the LLM and writes one row.
+        extract_trade_examples_for_chunk(chunk_id=chunk_id, db_path=db_path)
+        assert mock_call.call_count == 1
+
+        # Second call short-circuits — no new LLM call, returns the existing entities.
+        entities, usage = extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+        )
+        assert mock_call.call_count == 1  # unchanged
+        assert len(entities) == 1
+        assert entities[0].ticker == "NVDA"
+        # Idempotency path returns a zero-cost UsageRecord (no API call).
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0
+        assert usage.cost_estimate_usd == 0.0
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_unknown_chunk_id_raises(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+
+        with pytest.raises(LookupError, match="chunk_id"):
+            extract_trade_examples_for_chunk(chunk_id=999, db_path=db_path)
+        mock_call.assert_not_called()
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_passes_chunk_text_as_user_message(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        mock_call.return_value = (TradeExampleOutput(entities=[]), _stub_usage(), [])
+        extract_trade_examples_for_chunk(chunk_id=chunk_id, db_path=db_path)
+
+        kwargs = mock_call.call_args.kwargs
+        assert kwargs["model"] == "claude-sonnet-4-6"
+        assert "TradeExample" in kwargs["system"]
+        assert kwargs["messages"] == [{"role": "user", "content": "hello"}]
+        assert kwargs["schema"] is TradeExampleOutput
