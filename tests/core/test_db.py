@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from trading_wiki.core.db import apply_migrations, load_content_record, save_content_record
+from trading_wiki.core.db import (
+    apply_migrations,
+    list_content_summaries,
+    load_content_record,
+    save_content_record,
+)
 from trading_wiki.handlers.base import ContentRecord, Segment
 
 
@@ -849,3 +854,46 @@ def test_save_concepts_rolls_back_on_error(tmp_path):
         prompt_version="pass2-concept-v1",
     )
     assert rows == []
+
+
+def test_list_content_summaries_returns_id_type_title(tmp_path):
+    db_path = tmp_path / "test.db"
+    apply_migrations(db_path)
+    save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="aaa",
+            title="first",
+            author=None,
+            created_at=datetime(2026, 4, 1),
+            ingested_at=datetime(2026, 4, 22),
+            raw_text="x",
+            segments=[Segment(seq=0, text="x", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+    save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="youtube",
+            source_id="bbb",
+            title="second",
+            author=None,
+            created_at=datetime(2026, 4, 2),
+            ingested_at=datetime(2026, 4, 23),
+            raw_text="y",
+            segments=[Segment(seq=0, text="y", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+
+    rows = list_content_summaries(db_path)
+
+    assert [r["title"] for r in rows] == ["first", "second"]
+    assert {r["source_type"] for r in rows} == {"local_video", "youtube"}
+    assert all(isinstance(r["id"], int) for r in rows)
+
+
+def test_list_content_summaries_empty_db_returns_empty_list(tmp_path):
+    db_path = tmp_path / "test.db"
+    apply_migrations(db_path)
+    assert list_content_summaries(db_path) == []

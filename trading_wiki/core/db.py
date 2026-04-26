@@ -362,3 +362,10 @@ def load_concepts_for_version(
             row_dict["related_terms"] = json.loads(row_dict["related_terms"])
             result.append(row_dict)
         return result
+
+
+def list_content_summaries(db_path: Path | str) -> list[dict[str, Any]]:
+    """Return id/source_type/title for every row in content, ordered by id."""
+    with _connect(db_path) as conn:
+        rows = conn.execute("SELECT id, source_type, title FROM content ORDER BY id").fetchall()
+        return [dict(row) for row in rows]
