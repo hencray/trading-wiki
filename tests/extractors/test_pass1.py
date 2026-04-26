@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import pytest
 from pydantic import ValidationError
 
@@ -7,6 +9,11 @@ from trading_wiki.extractors.pass1 import (
     Pass1Output,
     validate_coverage,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from trading_wiki.core.llm import UsageRecord
 
 
 class TestPass1Chunk:
@@ -297,3 +304,210 @@ class TestConfig:
             "noise",
         ]:
             assert label in text, f"prompt missing label: {label}"
+
+
+def _seed_content(db_path: "Path", segment_count: int = 5) -> int:
+    from datetime import datetime
+
+    from trading_wiki.core.db import save_content_record
+    from trading_wiki.handlers.base import ContentRecord, Segment
+
+    record = ContentRecord(
+        source_type="test",
+        source_id=f"vid-{segment_count}",
+        title="Test video",
+        created_at=datetime(2026, 4, 25),
+        ingested_at=datetime(2026, 4, 25),
+        raw_text="...",
+        segments=[
+            Segment(
+                seq=i,
+                text=f"line {i}",
+                start_seconds=float(i),
+                end_seconds=float(i + 1),
+            )
+            for i in range(segment_count)
+        ],
+    )
+    return save_content_record(db_path, record)
+
+
+def _full_coverage_output(segment_count: int) -> Pass1Output:
+    return Pass1Output(
+        chunks=[
+            Pass1Chunk(
+                seq=0,
+                start_seg_seq=0,
+                end_seg_seq=segment_count - 1,
+                label="strategy",
+                confidence="high",
+                summary="all of it",
+            ),
+        ]
+    )
+
+
+def _stub_usage() -> "UsageRecord":
+    from trading_wiki.core.llm import UsageRecord
+
+    return UsageRecord(
+        model="claude-sonnet-4-6",
+        input_tokens=100,
+        output_tokens=50,
+        cost_estimate_usd=0.001,
+    )
+
+
+class TestExtract:
+    def test_happy_path_writes_chunks(self, tmp_path):
+        from unittest.mock import patch
+
+        from trading_wiki.core.db import apply_migrations, load_chunks_for_version
+
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        content_id = _seed_content(db_path, segment_count=5)
+
+        from trading_wiki.extractors.pass1 import extract
+
+        with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
+            mock_call.return_value = (
+                _full_coverage_output(5),
+                _stub_usage(),
+                [
+                    {"role": "user", "content": "..."},
+                    {"role": "assistant", "content": "..."},
+                ],
+            )
+            result = extract(content_id=content_id, db_path=db_path)
+            assert len(result) == 1
+            mock_call.assert_called_once()
+
+        rows = load_chunks_for_version(db_path, content_id=content_id, prompt_version="pass1-v1")
+        assert len(rows) == 1
+        assert rows[0]["label"] == "strategy"
+
+    def test_idempotent_skips_when_rows_already_exist(self, tmp_path):
+        from unittest.mock import patch
+
+        from trading_wiki.core.db import apply_migrations
+
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        content_id = _seed_content(db_path, segment_count=5)
+
+        from trading_wiki.extractors.pass1 import extract
+
+        with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
+            mock_call.return_value = (
+                _full_coverage_output(5),
+                _stub_usage(),
+                [{"role": "user", "content": "..."}],
+            )
+            extract(content_id=content_id, db_path=db_path)
+            assert mock_call.call_count == 1
+
+            result2 = extract(content_id=content_id, db_path=db_path)
+            assert len(result2) == 1
+            assert mock_call.call_count == 1
+
+    def test_coverage_failure_retries_once_then_succeeds(self, tmp_path):
+        from unittest.mock import patch
+
+        from trading_wiki.core.db import apply_migrations
+
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        content_id = _seed_content(db_path, segment_count=5)
+
+        from trading_wiki.extractors.pass1 import extract
+
+        bad_output = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=2,
+                    label="noise",
+                    confidence="high",
+                    summary="partial",
+                ),
+            ]
+        )
+
+        with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
+            mock_call.side_effect = [
+                (
+                    bad_output,
+                    _stub_usage(),
+                    [
+                        {"role": "user", "content": "u"},
+                        {"role": "assistant", "content": "a"},
+                    ],
+                ),
+                (
+                    _full_coverage_output(5),
+                    _stub_usage(),
+                    [
+                        {"role": "user", "content": "u"},
+                        {"role": "assistant", "content": "a"},
+                    ],
+                ),
+            ]
+            result = extract(content_id=content_id, db_path=db_path)
+            assert len(result) == 1
+            assert mock_call.call_count == 2
+            second_call_msgs = mock_call.call_args_list[1].kwargs["messages"]
+            assert any(
+                isinstance(m.get("content"), str) and "Coverage validation failed" in m["content"]
+                for m in second_call_msgs
+            )
+
+    def test_coverage_failure_twice_raises_and_writes_nothing(self, tmp_path):
+        from unittest.mock import patch
+
+        from trading_wiki.core.db import apply_migrations, load_chunks_for_version
+
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        content_id = _seed_content(db_path, segment_count=5)
+
+        from trading_wiki.extractors.pass1 import extract
+
+        bad_output = Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=2,
+                    label="noise",
+                    confidence="high",
+                    summary="partial",
+                ),
+            ]
+        )
+        with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
+            mock_call.side_effect = [
+                (bad_output, _stub_usage(), [{"role": "user", "content": "u"}]),
+                (bad_output, _stub_usage(), [{"role": "user", "content": "u"}]),
+            ]
+            with pytest.raises(CoverageError):
+                extract(content_id=content_id, db_path=db_path)
+            assert mock_call.call_count == 2
+
+        rows = load_chunks_for_version(db_path, content_id=content_id, prompt_version="pass1-v1")
+        assert rows == []
+
+    def test_unknown_content_id_raises(self, tmp_path):
+        from unittest.mock import patch
+
+        from trading_wiki.core.db import apply_migrations
+
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        from trading_wiki.extractors.pass1 import extract
+
+        with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
+            with pytest.raises(LookupError, match="content_id"):
+                extract(content_id=999, db_path=db_path)
+            mock_call.assert_not_called()
