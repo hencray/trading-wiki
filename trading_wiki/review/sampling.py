@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -98,4 +99,9 @@ def sample_items(
     ]
     if mode == "all":
         return pool
+    if mode == "random":
+        rng = random.Random(rng_seed)
+        if n >= len(pool):
+            return pool
+        return rng.sample(pool, n)
     raise NotImplementedError(f"mode={mode} not yet implemented")

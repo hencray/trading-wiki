@@ -136,3 +136,50 @@ def test_sample_items_filters_by_entity_types(tmp_path):
     db, cid = _seed(tmp_path)
     items = sample_items(db, content_id=cid, entity_types=["concept"], mode="all")
     assert all(i.entity_type == "concept" for i in items)
+
+
+def test_sample_items_random_returns_n_items(tmp_path):
+    db, cid = _seed(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="random",
+        n=1,
+        rng_seed=0,
+    )
+    assert len(items) == 1
+
+
+def test_sample_items_random_deterministic_with_seed(tmp_path):
+    db, cid = _seed(tmp_path)
+    a = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="random",
+        n=2,
+        rng_seed=42,
+    )
+    b = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="random",
+        n=2,
+        rng_seed=42,
+    )
+    assert [(i.entity_type, i.entity_id) for i in a] == [(i.entity_type, i.entity_id) for i in b]
+
+
+def test_sample_items_random_n_larger_than_pool_returns_all(tmp_path):
+    db, cid = _seed(tmp_path)
+    items = sample_items(
+        db,
+        content_id=cid,
+        entity_types=["trade_example", "concept"],
+        mode="random",
+        n=99,
+        rng_seed=0,
+    )
+    assert len(items) == 2
