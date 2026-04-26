@@ -248,3 +248,28 @@ class TestValidateCoverage:
         )
         with pytest.raises(CoverageError, match="start_seg_seq"):
             validate_coverage(out, segment_count=11)
+
+
+class TestConfig:
+    def test_pass1_constants_and_prompt_path(self):
+        from trading_wiki.config import (
+            MODEL_PASS1,
+            PROMPT_PASS1_PATH,
+            PROMPT_VERSION_PASS1,
+        )
+
+        assert MODEL_PASS1 == "claude-sonnet-4-6"
+        assert PROMPT_VERSION_PASS1 == "pass1-v1"
+        assert PROMPT_PASS1_PATH.is_file()
+        text = PROMPT_PASS1_PATH.read_text(encoding="utf-8")
+        assert len(text) > 100
+        for label in [
+            "strategy",
+            "concept",
+            "example",
+            "psychology",
+            "market_commentary",
+            "qa",
+            "noise",
+        ]:
+            assert label in text, f"prompt missing label: {label}"
