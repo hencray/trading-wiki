@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
 
@@ -96,3 +96,40 @@ def read_findings(path: Path | str) -> list[Finding]:
         else:
             i += 1
     return list(by_key.values())
+
+
+def _format_block(f: Finding) -> str:
+    notes = re.sub(r"\s+", " ", f.notes).strip()
+    reviewed_at = f.reviewed_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (
+        f"## item:{f.entity_type}:{f.entity_id}\n"
+        f"- status: {f.status}\n"
+        f"- chunk_id: {f.chunk_id}\n"
+        f"- chunk_label: {f.chunk_label}\n"
+        f"- prompt_version: {f.prompt_version}\n"
+        f"- reviewed_at: {reviewed_at}\n"
+        f"- notes: {notes}\n"
+    )
+
+
+def append_finding(path: Path | str, finding: Finding, *, content_id: int) -> None:
+    """Append ``finding`` as a new block to the markdown file.
+
+    Creates the file and parent directory on first write. Newlines in
+    ``finding.notes`` are collapsed to single spaces so the markdown stays
+    parseable by ``read_findings``.
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    block = _format_block(finding)
+    if not p.exists():
+        p.write_text(f"# Review — content_id={content_id}\n\n{block}")
+        return
+    existing = p.read_text()
+    if existing.endswith("\n\n"):
+        sep = ""
+    elif existing.endswith("\n"):
+        sep = "\n"
+    else:
+        sep = "\n\n"
+    p.write_text(existing + sep + block)

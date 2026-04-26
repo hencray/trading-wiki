@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from trading_wiki.review.findings import REVIEWS_DIR, Finding, findings_path_for, read_findings
+from trading_wiki.review.findings import (
+    REVIEWS_DIR,
+    Finding,
+    append_finding,
+    findings_path_for,
+    read_findings,
+)
 
 
 def test_findings_path_for_default_dir():
@@ -89,3 +95,86 @@ def test_read_findings_malformed_block_raises(tmp_path):
     )
     with pytest.raises(ValueError, match="item:trade_example:42"):
         read_findings(p)
+
+
+def test_append_finding_creates_file_with_header(tmp_path):
+    p = tmp_path / "subdir" / "content5.md"
+    f = Finding(
+        entity_type="trade_example",
+        entity_id=1,
+        status="accept",
+        chunk_id=10,
+        chunk_label="example",
+        prompt_version="pass2-trade-example-v1",
+        reviewed_at=datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC),
+        notes="ok",
+    )
+    append_finding(p, f, content_id=5)
+    text = p.read_text()
+    assert text.startswith("# Review — content_id=5\n")
+    assert "## item:trade_example:1" in text
+    assert "- notes: ok" in text
+
+
+def test_append_finding_does_not_duplicate_header(tmp_path):
+    p = tmp_path / "content5.md"
+    f1 = Finding(
+        "trade_example",
+        1,
+        "accept",
+        10,
+        "example",
+        "pass2-trade-example-v1",
+        datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC),
+        "a",
+    )
+    f2 = Finding(
+        "concept",
+        2,
+        "skip",
+        11,
+        "concept",
+        "pass2-concept-v1",
+        datetime(2026, 4, 26, 12, 1, 0, tzinfo=UTC),
+        "b",
+    )
+    append_finding(p, f1, content_id=5)
+    append_finding(p, f2, content_id=5)
+    text = p.read_text()
+    assert text.count("# Review — content_id=5") == 1
+    assert "## item:trade_example:1" in text
+    assert "## item:concept:2" in text
+
+
+def test_append_finding_collapses_notes_newlines(tmp_path):
+    p = tmp_path / "content5.md"
+    f = Finding(
+        "trade_example",
+        1,
+        "accept",
+        10,
+        "example",
+        "pass2-trade-example-v1",
+        datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC),
+        "line1\nline2\r\nline3",
+    )
+    append_finding(p, f, content_id=5)
+    text = p.read_text()
+    assert "- notes: line1 line2 line3" in text
+    assert "line1\nline2" not in text
+
+
+def test_append_finding_roundtrips_via_read_findings(tmp_path):
+    p = tmp_path / "content5.md"
+    f = Finding(
+        "concept",
+        9,
+        "needs_fix",
+        23,
+        "concept",
+        "pass2-concept-v1",
+        datetime(2026, 4, 26, 14, 35, 12, tzinfo=UTC),
+        "definition restates the metaphor",
+    )
+    append_finding(p, f, content_id=5)
+    assert read_findings(p) == [f]
