@@ -7,9 +7,15 @@ import pytest
 from trading_wiki.core.db import (
     apply_migrations,
     list_content_summaries,
+    list_trade_examples_for_content,
+    load_chunks_for_version,
     load_content_record,
+    save_chunks,
     save_content_record,
+    save_trade_examples,
 )
+from trading_wiki.extractors.pass1 import Pass1Chunk, Pass1Output
+from trading_wiki.extractors.pass2.trade_example import TradeExample, TradeExampleOutput
 from trading_wiki.handlers.base import ContentRecord, Segment
 
 
@@ -897,3 +903,85 @@ def test_list_content_summaries_empty_db_returns_empty_list(tmp_path):
     db_path = tmp_path / "test.db"
     apply_migrations(db_path)
     assert list_content_summaries(db_path) == []
+
+
+def test_list_trade_examples_for_content_returns_only_matching_content(tmp_path):
+    db_path = tmp_path / "test.db"
+    apply_migrations(db_path)
+    cid_a = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="a",
+            title="A",
+            author=None,
+            created_at=datetime(2026, 4, 1),
+            ingested_at=datetime(2026, 4, 22),
+            raw_text="hello",
+            segments=[Segment(seq=0, text="hello", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+    save_chunks(
+        db_path,
+        content_id=cid_a,
+        prompt_version="pass1-v1",
+        output=Pass1Output(
+            chunks=[
+                Pass1Chunk(
+                    seq=0,
+                    start_seg_seq=0,
+                    end_seg_seq=0,
+                    label="example",
+                    confidence="high",
+                    summary="trade",
+                ),
+            ]
+        ),
+    )
+    chunk_a = load_chunks_for_version(db_path, content_id=cid_a, prompt_version="pass1-v1")[0]
+    save_trade_examples(
+        db_path,
+        source_chunk_id=chunk_a["id"],
+        prompt_version="pass2-trade-example-v1",
+        output=TradeExampleOutput(
+            entities=[
+                TradeExample(
+                    ticker="AAPL",
+                    direction="long",
+                    instrument_type="stock",
+                    trade_date=None,
+                    entry_price=100.0,
+                    stop_price=99.0,
+                    target_price=110.0,
+                    exit_price=105.0,
+                    entry_description="enter on breakout",
+                    exit_description="exit at target",
+                    outcome_text="closed at target",
+                    outcome_classification="won",
+                    lessons=None,
+                    confidence="high",
+                )
+            ]
+        ),
+    )
+    cid_b = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="b",
+            title="B",
+            author=None,
+            created_at=datetime(2026, 4, 2),
+            ingested_at=datetime(2026, 4, 23),
+            raw_text="bye",
+            segments=[Segment(seq=0, text="bye", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+
+    rows_a = list_trade_examples_for_content(db_path, content_id=cid_a)
+    rows_b = list_trade_examples_for_content(db_path, content_id=cid_b)
+
+    assert len(rows_a) == 1
+    assert rows_a[0]["ticker"] == "AAPL"
+    assert rows_a[0]["source_chunk_id"] == chunk_a["id"]
+    assert rows_b == []

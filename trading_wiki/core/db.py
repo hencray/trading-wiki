@@ -369,3 +369,22 @@ def list_content_summaries(db_path: Path | str) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
         rows = conn.execute("SELECT id, source_type, title FROM content ORDER BY id").fetchall()
         return [dict(row) for row in rows]
+
+
+def list_trade_examples_for_content(
+    db_path: Path | str,
+    *,
+    content_id: int,
+) -> list[dict[str, Any]]:
+    """Return trade_examples whose source chunk belongs to ``content_id``, ordered by id."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT te.* FROM trade_examples te
+            JOIN chunks c ON c.id = te.source_chunk_id
+            WHERE c.content_id = ?
+            ORDER BY te.id
+            """,
+            (content_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
