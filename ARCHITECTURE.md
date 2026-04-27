@@ -41,7 +41,7 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/handlers/discord.py` | `discord:<path>` → pasted-text store-and-record (no parsing in v1) |
 | `trading_wiki/handlers/course_platform.py` | `course:<path>` → pasted-text store-and-record (Tier 1 source) |
 | `trading_wiki/handlers/{pdf,epub,article}.py` | stubs — `can_handle` works, `ingest` raises `NotImplementedError` |
-| `trading_wiki/core/db.py` | SQLite schema + migration applier (yoyo-migrations) |
+| `trading_wiki/core/db.py` | SQLite schema + migration applier (yoyo-migrations); per-table CRUD helpers including the review-UI fetchers `list_content_summaries`, `list_trade_examples_for_content`, `list_concepts_for_content` |
 | `trading_wiki/core/storage.py` | content-addressed file storage helpers |
 | `trading_wiki/core/audio.py` | ffmpeg subprocess → 32 kbps mono mp3 |
 | `trading_wiki/core/transcribe.py` | Whisper API wrapper (segment-granularity verbose_json) |
@@ -57,6 +57,9 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/extractors/pass2/__main__.py` | `python -m trading_wiki.extractors.pass2 --content-id N` entry; delegates to `pass2.main()` |
 | `trading_wiki/extractors/pass2/trade_example.py` | TradeExample Pydantic schemas + `extract_trade_examples_for_chunk` |
 | `trading_wiki/extractors/pass2/concept.py` | Concept Pydantic schemas + `extract_concepts_for_chunk` |
+| `trading_wiki/review/sampling.py` | Pure sample picker for the review UI: `ReviewItem` dataclass + `sample_items` with `stratified` / `all` / `random` modes |
+| `trading_wiki/review/findings.py` | Markdown findings file I/O for the review UI: `Finding` dataclass, `read_findings`, `append_finding`, `reviewed_ids`. Single source of truth for "what's been reviewed" |
+| `trading_wiki/review/app.py` | Streamlit review page (run: `uv run streamlit run trading_wiki/review/app.py`). View-only — calls into `sampling`, `findings`, and DB helpers |
 | `prompts/pass1.md` | Pass 1 system prompt; version-stamped via `PROMPT_VERSION_PASS1` |
 | `prompts/pass2_trade_example.md` | Pass 2 TradeExample system prompt; version-stamped via `PROMPT_VERSION_PASS2_TRADE_EXAMPLE` |
 | `prompts/pass2_concept.md` | Pass 2 Concept system prompt; version-stamped via `PROMPT_VERSION_PASS2_CONCEPT` |
