@@ -32,6 +32,18 @@ uv run pytest
 - `POLYGON_API_KEY` — market data (Phase 4+)
 - `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` — broker (Phase 6+)
 
+## Reviewing extracted entities
+
+Local Streamlit page for hand-reviewing Pass 2 output (`trade_examples`, `concepts`):
+
+```bash
+uv run streamlit run trading_wiki/review/app.py
+```
+
+Sidebar: pick a content row, choose entity types, sample mode (`stratified` / `all` / `random`), and N. Findings are written to `docs/superpowers/reviews/content<id>.md` (gitignored). Items already in that file are hidden by default; toggle "Show already-reviewed" to bring them back.
+
+DB path defaults to `data/research.db`; override with `TRADING_WIKI_DB=...`.
+
 ## Project shape
 
 - **`PROJECT_PLAN.md`** — authoritative phased plan, scope, and gates.
