@@ -2,7 +2,7 @@
 
 from itertools import pairwise
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from pydantic import Field
@@ -106,6 +106,24 @@ def build_transcript_text(segments: list[Segment]) -> str:
     return "\n".join(lines)
 
 
+def _find_last_tool_use_id(history: list[dict[str, Any]]) -> str:
+    """Find the id of the most recent tool_use block in an assistant turn.
+
+    ``call_structured`` only returns successfully when its response contains a
+    tool_use block, so for any history it produces this scan must succeed.
+    """
+    for msg in reversed(history):
+        if msg.get("role") != "assistant":
+            continue
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if getattr(block, "type", None) == "tool_use":
+                return block.id  # type: ignore[no-any-return]
+    raise RuntimeError("expected tool_use block in last assistant turn but found none")
+
+
 def extract(
     *,
     content_id: int,
@@ -160,15 +178,25 @@ def extract(
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
         )
+        # Anthropic rejects a plain user message after a tool_use block; the
+        # retry must reference the prior tool_use_id via a tool_result block.
+        tool_use_id = _find_last_tool_use_id(history)
         history.append(
             {
                 "role": "user",
-                "content": (
-                    f"Coverage validation failed: {e}. "
-                    f"Please regenerate the chunks correctly covering all "
-                    f"{segment_count} segments (indices 0..{segment_count - 1}) "
-                    "without gaps or overlaps."
-                ),
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": (
+                            f"Coverage validation failed: {e}. "
+                            f"Please regenerate the chunks correctly covering all "
+                            f"{segment_count} segments (indices 0..{segment_count - 1}) "
+                            "without gaps or overlaps."
+                        ),
+                        "is_error": True,
+                    }
+                ],
             }
         )
         output, retry_usage, _ = call_structured(

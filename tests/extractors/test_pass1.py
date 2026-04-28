@@ -412,6 +412,7 @@ class TestExtract:
             assert mock_call.call_count == 1
 
     def test_coverage_failure_retries_once_then_succeeds(self, tmp_path):
+        from types import SimpleNamespace
         from unittest.mock import patch
 
         from trading_wiki.core.db import apply_migrations
@@ -434,6 +435,22 @@ class TestExtract:
                 ),
             ]
         )
+        # Mirrors the real shape returned by core.llm.call_structured: the assistant
+        # turn's content is a list of blocks, one of which is a tool_use. Anthropic's
+        # API rejects any user message after a tool_use that is not a tool_result
+        # referencing that id, so the retry must send a tool_result block.
+        tool_use_id = "toolu_test_abc123"
+        assistant_with_tool_use = {
+            "role": "assistant",
+            "content": [
+                SimpleNamespace(
+                    type="tool_use",
+                    id=tool_use_id,
+                    name="submit_structured_output",
+                    input={},
+                )
+            ],
+        }
 
         with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
             mock_call.side_effect = [
@@ -442,28 +459,31 @@ class TestExtract:
                     _stub_usage(),
                     [
                         {"role": "user", "content": "u"},
-                        {"role": "assistant", "content": "a"},
+                        assistant_with_tool_use,
                     ],
                 ),
                 (
                     _full_coverage_output(5),
                     _stub_usage(),
-                    [
-                        {"role": "user", "content": "u"},
-                        {"role": "assistant", "content": "a"},
-                    ],
+                    [],
                 ),
             ]
             result = extract(content_id=content_id, db_path=db_path)
             assert len(result) == 1
             assert mock_call.call_count == 2
             second_call_msgs = mock_call.call_args_list[1].kwargs["messages"]
-            assert any(
-                isinstance(m.get("content"), str) and "Coverage validation failed" in m["content"]
-                for m in second_call_msgs
-            )
+            retry_msg = second_call_msgs[-1]
+            assert retry_msg["role"] == "user"
+            assert isinstance(retry_msg["content"], list)
+            assert len(retry_msg["content"]) == 1
+            block = retry_msg["content"][0]
+            assert block["type"] == "tool_result"
+            assert block["tool_use_id"] == tool_use_id
+            assert block["is_error"] is True
+            assert "Coverage validation failed" in block["content"]
 
     def test_coverage_failure_twice_raises_and_writes_nothing(self, tmp_path):
+        from types import SimpleNamespace
         from unittest.mock import patch
 
         from trading_wiki.core.db import apply_migrations, load_chunks_for_version
@@ -486,10 +506,24 @@ class TestExtract:
                 ),
             ]
         )
+        history_with_tool_use = [
+            {"role": "user", "content": "u"},
+            {
+                "role": "assistant",
+                "content": [
+                    SimpleNamespace(
+                        type="tool_use",
+                        id="toolu_test_xyz",
+                        name="submit_structured_output",
+                        input={},
+                    )
+                ],
+            },
+        ]
         with patch("trading_wiki.extractors.pass1.call_structured") as mock_call:
             mock_call.side_effect = [
-                (bad_output, _stub_usage(), [{"role": "user", "content": "u"}]),
-                (bad_output, _stub_usage(), [{"role": "user", "content": "u"}]),
+                (bad_output, _stub_usage(), history_with_tool_use),
+                (bad_output, _stub_usage(), history_with_tool_use),
             ]
             with pytest.raises(CoverageError):
                 extract(content_id=content_id, db_path=db_path)
