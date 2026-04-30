@@ -242,6 +242,30 @@ class TestExtractConceptsForChunk:
         assert usage.cost_estimate_usd == 0.0
 
     @patch("trading_wiki.extractors.pass2.concept.call_structured")
+    def test_idempotent_when_first_run_returned_zero_entities(self, mock_call, tmp_path):
+        """Empty-result extraction must still mark the chunk as processed.
+
+        Without this, re-running pass2 on a chunk that legitimately has no
+        concepts re-calls the LLM every time — non-deterministic and cost-leaking.
+        """
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        mock_call.return_value = (ConceptOutput(entities=[]), _stub_usage(), [])
+
+        entities, _ = extract_concepts_for_chunk(chunk_id=chunk_id, db_path=db_path)
+        assert entities == []
+        assert mock_call.call_count == 1
+
+        entities, usage = extract_concepts_for_chunk(chunk_id=chunk_id, db_path=db_path)
+        assert entities == []
+        assert mock_call.call_count == 1
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0
+        assert usage.cost_estimate_usd == 0.0
+
+    @patch("trading_wiki.extractors.pass2.concept.call_structured")
     def test_unknown_chunk_id_raises(self, mock_call, tmp_path):
         db_path = tmp_path / "research.db"
         apply_migrations(db_path)

@@ -14,6 +14,8 @@ from trading_wiki.config import (
 from trading_wiki.core.db import (
     load_chunk_by_id,
     load_concepts_for_version,
+    pass2_run_exists,
+    record_pass2_run,
     save_concepts,
 )
 from trading_wiki.core.llm import UsageRecord, call_structured
@@ -64,12 +66,17 @@ def extract_concepts_for_chunk(
     if chunk is None:
         raise LookupError(f"unknown chunk_id={chunk_id}")
 
-    existing = load_concepts_for_version(
+    if pass2_run_exists(
         db_path,
         source_chunk_id=chunk_id,
+        extractor="concept",
         prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
-    )
-    if existing:
+    ):
+        existing = load_concepts_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        )
         _log.info(
             "pass2.concept.idempotent_skip",
             chunk_id=chunk_id,
@@ -95,6 +102,13 @@ def extract_concepts_for_chunk(
         source_chunk_id=chunk_id,
         prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
         output=output,
+    )
+    record_pass2_run(
+        db_path,
+        source_chunk_id=chunk_id,
+        extractor="concept",
+        prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        entity_count=len(output.entities),
     )
     _log.info(
         "pass2.concept.extract.ok",

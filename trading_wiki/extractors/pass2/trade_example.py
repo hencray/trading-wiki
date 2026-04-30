@@ -14,6 +14,8 @@ from trading_wiki.config import (
 from trading_wiki.core.db import (
     load_chunk_by_id,
     load_trade_examples_for_version,
+    pass2_run_exists,
+    record_pass2_run,
     save_trade_examples,
 )
 from trading_wiki.core.llm import UsageRecord, call_structured
@@ -76,19 +78,23 @@ def extract_trade_examples_for_chunk(
     if chunk is None:
         raise LookupError(f"unknown chunk_id={chunk_id}")
 
-    existing = load_trade_examples_for_version(
+    if pass2_run_exists(
         db_path,
         source_chunk_id=chunk_id,
+        extractor="trade_example",
         prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
-    )
-    if existing:
+    ):
+        existing = load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        )
         _log.info(
             "pass2.trade_example.idempotent_skip",
             chunk_id=chunk_id,
             prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
             existing_count=len(existing),
         )
-        # Rebuild Pydantic entities from row dicts so the return type is consistent.
         entities = [
             TradeExample(**{k: v for k, v in row.items() if k in TradeExample.model_fields})
             for row in existing
@@ -108,6 +114,13 @@ def extract_trade_examples_for_chunk(
         source_chunk_id=chunk_id,
         prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
         output=output,
+    )
+    record_pass2_run(
+        db_path,
+        source_chunk_id=chunk_id,
+        extractor="trade_example",
+        prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        entity_count=len(output.entities),
     )
     _log.info(
         "pass2.trade_example.extract.ok",

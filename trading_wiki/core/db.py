@@ -364,6 +364,42 @@ def load_concepts_for_version(
         return result
 
 
+def pass2_run_exists(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    extractor: str,
+    prompt_version: str,
+) -> bool:
+    """Return True if a Pass 2 run is recorded for ``(chunk, extractor, prompt_version)``."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM pass2_runs "
+            "WHERE source_chunk_id = ? AND extractor = ? AND prompt_version = ?",
+            (source_chunk_id, extractor, prompt_version),
+        ).fetchone()
+        return row is not None
+
+
+def record_pass2_run(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    extractor: str,
+    prompt_version: str,
+    entity_count: int,
+) -> None:
+    """Record a successful Pass 2 run, including zero-entity outcomes."""
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO pass2_runs "
+            "(source_chunk_id, extractor, prompt_version, entity_count, run_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (source_chunk_id, extractor, prompt_version, entity_count, now),
+        )
+
+
 def list_content_summaries(db_path: Path | str) -> list[dict[str, Any]]:
     """Return id/source_type/title for every row in content, ordered by id."""
     with _connect(db_path) as conn:
