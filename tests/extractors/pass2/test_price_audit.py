@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import sqlite3
+import subprocess
+import sys
 from datetime import UTC
 from datetime import datetime as _dt
 from pathlib import Path
@@ -437,3 +439,17 @@ def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:
     assert "## Medium severity" not in md  # 0 medium findings
     # Chunk excerpt for the high finding should be in the report
     assert "entered at 295" in md
+
+
+def test_price_audit_module_help_exits_zero() -> None:
+    """`python -m trading_wiki.extractors.pass2.price_audit --help` exits 0."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "trading_wiki.extractors.pass2.price_audit", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "price_audit" in proc.stdout
+    assert "--content-id" in proc.stdout
+    assert "--all" in proc.stdout
