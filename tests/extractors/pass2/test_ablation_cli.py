@@ -115,3 +115,126 @@ def test_cli_defaults_and_writes_artifacts(tmp_path: Path, monkeypatch: pytest.M
     cfg = json.loads((run_dir / "config.json").read_text())
     assert cfg["seed"] == 7
     assert cfg["n_priming_te"] == 1
+
+
+def test_cli_arms_te_skips_concept_and_routing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When --arms te is passed, only the TE-priming arm should call its
+    extractor; Concept and routing arms must be skipped entirely.
+    """
+    db_path = tmp_path / "research.db"
+    _seed_minimal_corpus(db_path)
+
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    te_calls = 0
+    concept_calls = 0
+
+    def _stub_te(**kwargs: Any) -> Any:
+        nonlocal te_calls
+        te_calls += 1
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    def _stub_concept(**kwargs: Any) -> Any:
+        nonlocal concept_calls
+        concept_calls += 1
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_trade_examples_for_chunk",
+        _stub_te,
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_concepts_for_chunk",
+        _stub_concept,
+    )
+
+    rc = main(
+        [
+            "--n-priming-te",
+            "1",
+            "--n-priming-concept",
+            "1",
+            "--n-routing",
+            "1",
+            "--seed",
+            "7",
+            "--arms",
+            "te",
+        ]
+    )
+
+    assert rc == 0
+    # Only the TE-priming arm runs; routing arm (which also uses TE extractor)
+    # is skipped.
+    assert te_calls == 1
+    assert concept_calls == 0
+
+
+def test_cli_arms_defaults_preserve_three_arm_behavior(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Existing zero-flag invocation still runs all three arms."""
+    db_path = tmp_path / "research.db"
+    _seed_minimal_corpus(db_path)
+
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    te_calls = 0
+    concept_calls = 0
+
+    def _stub_te(**kwargs: Any) -> Any:
+        nonlocal te_calls
+        te_calls += 1
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    def _stub_concept(**kwargs: Any) -> Any:
+        nonlocal concept_calls
+        concept_calls += 1
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_trade_examples_for_chunk",
+        _stub_te,
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_concepts_for_chunk",
+        _stub_concept,
+    )
+
+    rc = main(
+        [
+            "--n-priming-te",
+            "1",
+            "--n-priming-concept",
+            "1",
+            "--n-routing",
+            "1",
+            "--seed",
+            "7",
+        ]
+    )
+
+    assert rc == 0
+    # TE priming (1) + routing (1) = 2 TE calls; concept priming (1) = 1 concept
+    assert te_calls == 2
+    assert concept_calls == 1

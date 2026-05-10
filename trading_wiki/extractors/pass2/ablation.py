@@ -431,7 +431,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-priming-concept", type=int, default=10)
     parser.add_argument("--n-routing", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--arms",
+        type=str,
+        default="te,concept,routing",
+        help="Comma-separated subset of arms to run. Default: te,concept,routing.",
+    )
     args = parser.parse_args(argv)
+
+    arms = {a.strip() for a in args.arms.split(",") if a.strip()}
+    unknown = arms - {"te", "concept", "routing"}
+    if unknown:
+        parser.error(f"--arms: unknown value(s) {sorted(unknown)}")
 
     db_path = Settings().db_path
     samples = sample_chunks_for_ablation(
@@ -454,66 +465,69 @@ def main(argv: list[str] | None = None) -> int:
 
     # TE priming arm
     te_diffs: list[PrimingDiff] = []
-    for chunk in samples.te_priming:
-        baseline_rows = load_trade_examples_for_version(
-            db_path,
-            source_chunk_id=chunk["id"],
-            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
-        )
-        blind_entities, usage = extract_trade_examples_for_chunk(
-            chunk_id=chunk["id"],
-            db_path=db_path,
-            prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
-            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
-            persist=False,
-        )
-        _accumulate(usage)
-        te_diffs.append(
-            build_priming_diff(
-                chunk=chunk,
-                baseline=baseline_rows,
-                blind=_entities_to_dicts(blind_entities),
-                match_key="ticker",
+    if "te" in arms:
+        for chunk in samples.te_priming:
+            baseline_rows = load_trade_examples_for_version(
+                db_path,
+                source_chunk_id=chunk["id"],
+                prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
             )
-        )
+            blind_entities, usage = extract_trade_examples_for_chunk(
+                chunk_id=chunk["id"],
+                db_path=db_path,
+                prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+                prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+                persist=False,
+            )
+            _accumulate(usage)
+            te_diffs.append(
+                build_priming_diff(
+                    chunk=chunk,
+                    baseline=baseline_rows,
+                    blind=_entities_to_dicts(blind_entities),
+                    match_key="ticker",
+                )
+            )
 
     # Concept priming arm
     concept_diffs: list[PrimingDiff] = []
-    for chunk in samples.concept_priming:
-        baseline_rows = load_concepts_for_version(
-            db_path,
-            source_chunk_id=chunk["id"],
-            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
-        )
-        blind_concepts, usage = extract_concepts_for_chunk(
-            chunk_id=chunk["id"],
-            db_path=db_path,
-            prompt_path=PROMPT_PASS2_CONCEPT_BLIND_PATH,
-            prompt_version=PROMPT_VERSION_PASS2_CONCEPT_BLIND,
-            persist=False,
-        )
-        _accumulate(usage)
-        concept_diffs.append(
-            build_priming_diff(
-                chunk=chunk,
-                baseline=baseline_rows,
-                blind=_entities_to_dicts(blind_concepts),
-                match_key="term",
+    if "concept" in arms:
+        for chunk in samples.concept_priming:
+            baseline_rows = load_concepts_for_version(
+                db_path,
+                source_chunk_id=chunk["id"],
+                prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
             )
-        )
+            blind_concepts, usage = extract_concepts_for_chunk(
+                chunk_id=chunk["id"],
+                db_path=db_path,
+                prompt_path=PROMPT_PASS2_CONCEPT_BLIND_PATH,
+                prompt_version=PROMPT_VERSION_PASS2_CONCEPT_BLIND,
+                persist=False,
+            )
+            _accumulate(usage)
+            concept_diffs.append(
+                build_priming_diff(
+                    chunk=chunk,
+                    baseline=baseline_rows,
+                    blind=_entities_to_dicts(blind_concepts),
+                    match_key="term",
+                )
+            )
 
     # Routing arm — run blind TE extractor over non-example chunks
     routing_blind_results: dict[int, list[dict[str, Any]]] = {}
-    for chunk in samples.routing:
-        blind_entities, usage = extract_trade_examples_for_chunk(
-            chunk_id=chunk["id"],
-            db_path=db_path,
-            prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
-            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
-            persist=False,
-        )
-        _accumulate(usage)
-        routing_blind_results[chunk["id"]] = _entities_to_dicts(blind_entities)
+    if "routing" in arms:
+        for chunk in samples.routing:
+            blind_entities, usage = extract_trade_examples_for_chunk(
+                chunk_id=chunk["id"],
+                db_path=db_path,
+                prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+                prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+                persist=False,
+            )
+            _accumulate(usage)
+            routing_blind_results[chunk["id"]] = _entities_to_dicts(blind_entities)
 
     routing_audit = build_routing_audit(
         non_example_chunks=samples.routing,
