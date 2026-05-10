@@ -11,17 +11,18 @@ def _format_value(value: float) -> set[str]:
 
     Integer values produce both ``"<int>"`` and ``"<int>.0"`` forms; non-integer
     values produce only the canonical decimal form (no trailing-zero collapse,
-    no extra precision). Values requiring >2 decimal places are excluded so we
-    don't generate variants that wouldn't appear as spoken prices.
+    no extra precision). Values whose canonical decimal form needs more than 2
+    decimal places are excluded so we don't generate variants that wouldn't
+    appear as spoken prices (e.g., ÷100 of 850.25 = 8.5025 must not produce
+    a rounded "8.5").
     """
     if value <= 0:
         return set()
     if value == int(value):
         return {str(int(value)), f"{int(value)}.0"}
-    # Non-integer: emit only the canonical form with up to 2 decimals
-    formatted = f"{value:.2f}".rstrip("0").rstrip(".")
-    if "." in formatted and len(formatted.split(".")[-1]) > 2:
+    if round(value, 2) != value:
         return set()
+    formatted = f"{value:.2f}".rstrip("0").rstrip(".")
     return {formatted}
 
 

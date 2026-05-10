@@ -49,3 +49,21 @@ def test_price_variants_returns_set_of_strings() -> None:
     variants = _price_variants(50.0)
     assert isinstance(variants, set)
     assert all(isinstance(v, str) for v in variants)
+
+
+def test_price_variants_zero_returns_empty_set() -> None:
+    """The value <= 0 guard in _format_value should produce an empty variant set."""
+    assert _price_variants(0.0) == set()
+
+
+def test_price_variants_three_decimal_value_excludes_rounded_variants() -> None:
+    """Variants that would require >2 decimal places must be excluded — not rounded.
+
+    Without this guard, _format_value(8.5025) silently returned {"8.5"}, which
+    is a spurious low-precision variant of 850.25 / 100.
+    """
+    variants = _price_variants(850.25)
+    # The ÷100 result 8.5025 needs 4 decimal places → must be excluded
+    assert "8.5" not in variants
+    assert "8.50" not in variants
+    assert "8.5025" not in variants
