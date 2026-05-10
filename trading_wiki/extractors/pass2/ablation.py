@@ -5,6 +5,7 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-contamination-ablation-design.md
 
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -227,3 +228,145 @@ def build_routing_audit(
 
     entries.sort(key=lambda e: e.chunk_id)
     return RoutingAudit(entries=entries, total_chunks_audited=len(non_example_chunks))
+
+
+# ─── Artifact writer ───────────────────────────────────────────────────────
+
+
+def _render_priming_diff_md(
+    *,
+    extractor_name: str,
+    diffs: list[PrimingDiff],
+) -> str:
+    if not diffs:
+        return f"## {extractor_name}\n\nNo chunks sampled.\n"
+    parts: list[str] = [f"## {extractor_name}\n"]
+    for d in diffs:
+        parts.append(
+            f"### chunk_id={d.chunk_id} · content_id={d.content_id} · "
+            f"label={d.chunk_label} · seq={d.chunk_seq}"
+        )
+        parts.append(
+            f"- baseline_count: {d.baseline_count} · blind_count: {d.blind_count} · "
+            f"verdict: **{d.overall_verdict}**\n"
+        )
+        for ed in d.entity_diffs:
+            parts.append(f"- entity verdict: `{ed.verdict}`")
+            if ed.changed_fields:
+                parts.append(f"  - changed fields: {', '.join(ed.changed_fields)}")
+            if ed.baseline is not None:
+                parts.append(f"  - baseline: `{ed.baseline}`")
+            if ed.blind is not None:
+                parts.append(f"  - blind:    `{ed.blind}`")
+        parts.append("")
+    return "\n".join(parts)
+
+
+def _render_routing_audit_md(audit: RoutingAudit) -> str:
+    if not audit.entries:
+        return f"# Routing audit\n\nNo routing misses found at n={audit.total_chunks_audited}.\n"
+    parts: list[str] = [
+        "# Routing audit\n",
+        (
+            f"{len(audit.entries)} of {audit.total_chunks_audited} non-example chunks "
+            "produced TE entities under the blind prompt.\n"
+        ),
+    ]
+    for e in audit.entries:
+        parts.append(
+            f"## chunk_id={e.chunk_id} · content_id={e.content_id} · label={e.chunk_label}"
+        )
+        parts.append(f"\n> {e.chunk_text_excerpt}\n")
+        for ent in e.proposed_entities:
+            parts.append(f"- proposed: `{ent}`")
+        parts.append("")
+    return "\n".join(parts)
+
+
+def _render_summary_md(
+    *,
+    config: AblationConfig,
+    te_priming_diffs: list[PrimingDiff],
+    concept_priming_diffs: list[PrimingDiff],
+    routing_audit: RoutingAudit,
+) -> str:
+    def _verdict_counts(diffs: list[PrimingDiff]) -> dict[str, int]:
+        counts = {"identical": 0, "field_changed": 0, "count_changed": 0}
+        for d in diffs:
+            counts[d.overall_verdict] += 1
+        return counts
+
+    te_counts = _verdict_counts(te_priming_diffs)
+    cn_counts = _verdict_counts(concept_priming_diffs)
+
+    return (
+        f"# Ablation summary\n\n"
+        f"- run_id: `{config.run_id}`\n"
+        f"- seed: {config.seed}\n"
+        f"- total_cost_usd: {config.total_cost_usd:.4f}\n\n"
+        f"## Priming arm — TE\n"
+        f"- identical: {te_counts['identical']}\n"
+        f"- field_changed: {te_counts['field_changed']}\n"
+        f"- count_changed: {te_counts['count_changed']}\n\n"
+        f"## Priming arm — Concept\n"
+        f"- identical: {cn_counts['identical']}\n"
+        f"- field_changed: {cn_counts['field_changed']}\n"
+        f"- count_changed: {cn_counts['count_changed']}\n\n"
+        f"## Routing arm\n"
+        f"- {len(routing_audit.entries)} / {routing_audit.total_chunks_audited} "
+        f"non-example chunks produced TE entities under the blind prompt\n\n"
+        f"## Recommendation\n"
+        f"_(fill in by hand after reviewing the diff and audit files)_\n"
+    )
+
+
+def write_run_artifacts(
+    *,
+    run_dir: Path,
+    config: AblationConfig,
+    te_priming_diffs: list[PrimingDiff],
+    concept_priming_diffs: list[PrimingDiff],
+    routing_audit: RoutingAudit,
+) -> None:
+    """Write config.json + priming_diff.md + routing_audit.md + summary.md."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    (run_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "run_id": config.run_id,
+                "seed": config.seed,
+                "n_priming_te": config.n_priming_te,
+                "n_priming_concept": config.n_priming_concept,
+                "n_routing": config.n_routing,
+                "sampled_chunk_ids": config.sampled_chunk_ids,
+                "total_cost_usd": config.total_cost_usd,
+                "total_input_tokens": config.total_input_tokens,
+                "total_output_tokens": config.total_output_tokens,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    priming_md = (
+        "# Priming diff\n\n"
+        + _render_priming_diff_md(extractor_name="trade_example", diffs=te_priming_diffs)
+        + "\n"
+        + _render_priming_diff_md(extractor_name="concept", diffs=concept_priming_diffs)
+    )
+    (run_dir / "priming_diff.md").write_text(priming_md, encoding="utf-8")
+    (run_dir / "routing_audit.md").write_text(
+        _render_routing_audit_md(routing_audit), encoding="utf-8"
+    )
+    (run_dir / "summary.md").write_text(
+        _render_summary_md(
+            config=config,
+            te_priming_diffs=te_priming_diffs,
+            concept_priming_diffs=concept_priming_diffs,
+            routing_audit=routing_audit,
+        ),
+        encoding="utf-8",
+    )
