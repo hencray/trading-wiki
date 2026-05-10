@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from trading_wiki.extractors.pass2.price_audit import _price_variants
+from trading_wiki.extractors.pass2.price_audit import _normalize_chunk_text, _price_variants
 
 
 def test_price_variants_integer_value_has_both_int_and_decimal_forms() -> None:
@@ -67,3 +67,20 @@ def test_price_variants_three_decimal_value_excludes_rounded_variants() -> None:
     assert "8.5" not in variants
     assert "8.50" not in variants
     assert "8.5025" not in variants
+
+
+def test_normalize_chunk_strips_dollar_signs() -> None:
+    assert _normalize_chunk_text("Entered at $295.") == "entered at 295."
+
+
+def test_normalize_chunk_strips_thousands_commas_between_digits() -> None:
+    assert _normalize_chunk_text("Cost was $1,200") == "cost was 1200"
+
+
+def test_normalize_chunk_preserves_commas_in_prose() -> None:
+    """Commas not between digits stay (e.g., 'Tuesday, March 5')."""
+    assert _normalize_chunk_text("Tuesday, March 5") == "tuesday, march 5"
+
+
+def test_normalize_chunk_lowercases() -> None:
+    assert _normalize_chunk_text("NVDA Long").startswith("nvda")

@@ -5,6 +5,8 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-te-price-audit-design.md
 
 from __future__ import annotations
 
+import re
+
 
 def _format_value(value: float) -> set[str]:
     """Return string representations for a numeric value.
@@ -37,3 +39,19 @@ def _price_variants(value: float) -> set[str]:
     for factor in (1.0, 10.0, 0.1, 100.0, 0.01):
         variants |= _format_value(value * factor)
     return variants
+
+
+_THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d)")
+
+
+def _normalize_chunk_text(text: str) -> str:
+    """Lowercase, strip ``$``, and remove commas between digits.
+
+    Used so chunk-text scans can match extracted prices regardless of unit
+    decoration. Commas not between digits (e.g., ``"Tuesday, March 5"``) are
+    preserved so we don't garble prose.
+    """
+    text = text.lower()
+    text = text.replace("$", "")
+    text = _THOUSANDS_COMMA.sub("", text)
+    return text
