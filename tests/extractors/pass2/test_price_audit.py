@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from trading_wiki.extractors.pass2.price_audit import _normalize_chunk_text, _price_variants
+from trading_wiki.extractors.pass2.price_audit import (
+    _chunk_contains_value,
+    _normalize_chunk_text,
+    _price_variants,
+)
 
 
 def test_price_variants_integer_value_has_both_int_and_decimal_forms() -> None:
@@ -84,3 +88,24 @@ def test_normalize_chunk_preserves_commas_in_prose() -> None:
 
 def test_normalize_chunk_lowercases() -> None:
     assert _normalize_chunk_text("NVDA Long") == "nvda long"
+
+
+def test_chunk_contains_exact_value() -> None:
+    assert _chunk_contains_value("entered at 295.", "295") is True
+
+
+def test_chunk_does_not_match_value_inside_larger_number() -> None:
+    """295 should not match inside 2950."""
+    assert _chunk_contains_value("entered at 2950.", "295") is False
+
+
+def test_chunk_does_not_match_decimal_prefix_of_longer_number() -> None:
+    """2.95 should not match inside 2.957."""
+    assert _chunk_contains_value("entered at 2.957", "2.95") is False
+
+
+def test_chunk_match_at_string_boundaries() -> None:
+    """Value at the very start or end of the string should match."""
+    assert _chunk_contains_value("295", "295") is True
+    assert _chunk_contains_value("price 295", "295") is True
+    assert _chunk_contains_value("295 dollars", "295") is True

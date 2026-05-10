@@ -55,3 +55,16 @@ def _normalize_chunk_text(text: str) -> str:
     text = text.replace("$", "")
     text = _THOUSANDS_COMMA.sub("", text)
     return text
+
+
+def _chunk_contains_value(normalized_text: str, value_str: str) -> bool:
+    """Return True iff ``value_str`` appears in ``normalized_text`` with no
+    adjacent digit or decimal-point characters on either side.
+
+    The lookarounds ensure ``"295"`` does NOT match inside ``"2950"`` and
+    ``"2.95"`` does NOT match inside ``"2.957"``. ``normalized_text`` should
+    already have been lowercased and stripped of ``$`` / thousands commas via
+    :func:`_normalize_chunk_text`.
+    """
+    pattern = rf"(?<![\d.]){re.escape(value_str)}(?![\d])"
+    return re.search(pattern, normalized_text) is not None
