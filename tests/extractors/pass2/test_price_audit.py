@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import sqlite3
+from datetime import UTC
+from datetime import datetime as _dt
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any as _Any
 
 import pytest
 
@@ -294,6 +299,85 @@ def test_chunk_still_matches_value_followed_by_sentence_period() -> None:
 def test_chunk_does_not_match_decimal_inside_longer_decimal() -> None:
     """2.95 should not match inside 2.95.0 — unusual but defensible."""
     assert _chunk_contains_value("price 2.95.0", "2.95") is False
+
+
+def _seed_audit_corpus(db_path: Path) -> None:
+    """Seed a minimal DB with one chunk and one trade_example row."""
+    from trading_wiki.config import (
+        PROMPT_VERSION_PASS1,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+    )
+    from trading_wiki.core.db import apply_migrations, save_content_record
+    from trading_wiki.handlers.base import ContentRecord, Segment
+
+    apply_migrations(db_path)
+    cid = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="vid:audit",
+            title="audit",
+            raw_text="t",
+            created_at=_dt(2026, 5, 10, tzinfo=UTC),
+            ingested_at=_dt(2026, 5, 10, tzinfo=UTC),
+            segments=[Segment(seq=0, text="hi", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO chunks
+            (content_id, seq, start_seg_seq, end_seg_seq, label, confidence,
+             summary, text, prompt_version, created_at)
+            VALUES (?, 0, 0, 0, 'example', 'high', 's',
+                    'I entered NVDA at 295 yesterday', ?, '2026-05-10')
+            """,
+            (cid, PROMPT_VERSION_PASS1),
+        )
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO trade_examples
+            (source_chunk_id, ticker, direction, instrument_type,
+             trade_date, entry_price, stop_price, target_price, exit_price,
+             entry_description, exit_description, outcome_text,
+             outcome_classification, lessons, confidence,
+             prompt_version, created_at)
+            VALUES (?, 'NVDA', 'long', 'stock',
+                    NULL, 295.0, NULL, NULL, NULL,
+                    'long at 295', 'flat', 'ok',
+                    'scratch', NULL, 'high',
+                    ?, '2026-05-10')
+            """,
+            (chunk_id, PROMPT_VERSION_PASS2_TRADE_EXAMPLE),
+        )
+        conn.commit()
+
+
+def test_cli_writes_artifacts_for_all(tmp_path: Path, monkeypatch: _Any) -> None:
+    from trading_wiki.extractors.pass2.price_audit import main
+
+    db_path = tmp_path / "research.db"
+    _seed_audit_corpus(db_path)
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.price_audit.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.price_audit._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    rc = main(["--all"])
+    assert rc == 0
+    out_runs = list((tmp_path / "out").iterdir())
+    assert len(out_runs) == 1
+    run_dir = out_runs[0]
+    payload = json.loads((run_dir / "findings.json").read_text(encoding="utf-8"))
+    # Single info finding: 295.0 matches "I entered NVDA at 295"
+    assert payload["counts"]["info"] == 1
+    assert payload["counts"]["high"] == 0
 
 
 def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:

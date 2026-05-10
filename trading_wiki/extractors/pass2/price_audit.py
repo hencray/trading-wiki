@@ -5,14 +5,20 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-te-price-audit-design.md
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import structlog
+
+from trading_wiki.config import PROMPT_VERSION_PASS2_TRADE_EXAMPLE
+from trading_wiki.core.db import list_content_summaries, list_trade_examples_for_content
+from trading_wiki.core.secrets import Settings
 
 
 def _format_value(value: float) -> set[str]:
@@ -322,3 +328,69 @@ def write_audit_artifacts(
         _render_findings_md(findings, chunk_texts), encoding="utf-8"
     )
     return run_dir
+
+
+def _load_te_rows_and_chunks(
+    db_path: Path,
+    *,
+    content_id: int | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Load TE rows (at the locked v1 prompt_version) plus all chunks they
+    reference. If ``content_id`` is None, load across all content rows.
+    """
+    te_rows: list[dict[str, Any]] = []
+    if content_id is not None:
+        content_ids = [content_id]
+    else:
+        content_ids = [int(c["id"]) for c in list_content_summaries(db_path)]
+    for cid in content_ids:
+        for row in list_trade_examples_for_content(db_path, content_id=cid):
+            if row["prompt_version"] != PROMPT_VERSION_PASS2_TRADE_EXAMPLE:
+                continue
+            te_rows.append(dict(row))
+
+    chunk_ids = {int(r["source_chunk_id"]) for r in te_rows}
+    chunk_rows: list[dict[str, Any]] = []
+    if chunk_ids:
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            placeholders = ",".join("?" * len(chunk_ids))
+            cursor = conn.execute(
+                f"SELECT id, content_id, text FROM chunks WHERE id IN ({placeholders})",
+                tuple(chunk_ids),
+            )
+            chunk_rows = [dict(row) for row in cursor.fetchall()]
+    return te_rows, chunk_rows
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass2.price_audit",
+        description="Audit Pass 2 TradeExample rows for silent price rescaling.",
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--content-id", type=int, default=None)
+    group.add_argument("--all", action="store_true")
+    args = parser.parse_args(argv)
+
+    db_path = Settings().db_path
+    te_rows, chunk_rows = _load_te_rows_and_chunks(
+        db_path,
+        content_id=args.content_id if not args.all else None,
+    )
+
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    chunk_texts = {int(c["id"]): str(c["text"]) for c in chunk_rows}
+    run_dir = write_audit_artifacts(findings=findings, chunk_texts=chunk_texts)
+
+    _log.info(
+        "price_audit.complete",
+        run_dir=str(run_dir),
+        counts=_count_by_severity(findings),
+    )
+    print(f"Wrote {run_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
