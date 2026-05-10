@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
+
+import structlog
 
 
 def _format_value(value: float) -> set[str]:
@@ -114,3 +116,83 @@ def _classify_severity(
     if x10_present or div10_present or x100_present or div100_present:
         return "high"
     return "medium"
+
+
+_log = structlog.get_logger(__name__)
+
+_PRICE_FIELDS: tuple[PriceField, ...] = (
+    "entry_price",
+    "stop_price",
+    "target_price",
+    "exit_price",
+)
+
+
+def audit_trade_example_prices(
+    *,
+    te_rows: list[dict[str, Any]],
+    chunk_rows: list[dict[str, Any]],
+) -> list[PriceAuditFinding]:
+    """Audit a list of TradeExample rows for silent price rescaling.
+
+    For each non-NULL price field on each TE row, generate the literal +
+    rescaled variants and check which ones appear in the source chunk text
+    (digit-boundary-aware). Emit one ``PriceAuditFinding`` per audited
+    price field. Rows whose ``source_chunk_id`` has no matching row in
+    ``chunk_rows`` are logged and skipped.
+
+    ``chunk_rows`` must include ``id``, ``content_id``, and ``text``.
+    """
+    chunk_by_id: dict[int, dict[str, Any]] = {int(c["id"]): c for c in chunk_rows}
+    findings: list[PriceAuditFinding] = []
+
+    for te in te_rows:
+        chunk_id = int(te["source_chunk_id"])
+        chunk = chunk_by_id.get(chunk_id)
+        if chunk is None:
+            _log.warning(
+                "price_audit.chunk_missing",
+                te_id=int(te["id"]),
+                source_chunk_id=chunk_id,
+            )
+            continue
+        normalized = _normalize_chunk_text(str(chunk["text"]))
+
+        for field in _PRICE_FIELDS:
+            value = te.get(field)
+            if value is None:
+                continue
+            literal = _format_value(float(value))
+            literal_present = any(_chunk_contains_value(normalized, v) for v in literal)
+            x10 = _format_value(float(value) * 10)
+            x10_present = any(_chunk_contains_value(normalized, v) for v in x10)
+            div10 = _format_value(float(value) / 10)
+            div10_present = any(_chunk_contains_value(normalized, v) for v in div10)
+            x100 = _format_value(float(value) * 100)
+            x100_present = any(_chunk_contains_value(normalized, v) for v in x100)
+            div100 = _format_value(float(value) / 100)
+            div100_present = any(_chunk_contains_value(normalized, v) for v in div100)
+
+            severity = _classify_severity(
+                literal_present=literal_present,
+                x10_present=x10_present,
+                div10_present=div10_present,
+                x100_present=x100_present,
+                div100_present=div100_present,
+            )
+            findings.append(
+                PriceAuditFinding(
+                    te_id=int(te["id"]),
+                    chunk_id=chunk_id,
+                    content_id=int(chunk["content_id"]),
+                    field=field,
+                    extracted_value=float(value),
+                    literal_present=literal_present,
+                    x10_present=x10_present,
+                    div10_present=div10_present,
+                    x100_present=x100_present,
+                    div100_present=div100_present,
+                    severity=severity,
+                )
+            )
+    return findings

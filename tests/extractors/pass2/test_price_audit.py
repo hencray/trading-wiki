@@ -195,3 +195,103 @@ def test_price_audit_finding_is_frozen_dataclass() -> None:
     assert dataclasses.is_dataclass(finding)
     with pytest.raises(dataclasses.FrozenInstanceError):
         finding.te_id = 99  # type: ignore[misc]
+
+
+def _make_te_row(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": 1,
+        "source_chunk_id": 10,
+        "entry_price": None,
+        "stop_price": None,
+        "target_price": None,
+        "exit_price": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def _make_chunk_row(chunk_id: int = 10, content_id: int = 2, text: str = "") -> dict[str, object]:
+    return {"id": chunk_id, "content_id": content_id, "text": text}
+
+
+def test_audit_empty_te_rows_returns_empty() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    assert audit_trade_example_prices(te_rows=[], chunk_rows=[]) == []
+
+
+def test_audit_te_with_all_null_prices_produces_no_findings() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [_make_te_row()]
+    chunk_rows = [_make_chunk_row(text="some unrelated transcript")]
+    assert audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows) == []
+
+
+def test_audit_literal_present_emits_info_finding() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [_make_te_row(entry_price=295.0)]
+    chunk_rows = [_make_chunk_row(text="I entered NVDA at 295 yesterday")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert len(findings) == 1
+    assert findings[0].severity == "info"
+    assert findings[0].field == "entry_price"
+    assert findings[0].literal_present is True
+
+
+def test_audit_rescaled_only_emits_high_finding() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    # Extracted 2.95 but chunk only says 295 — silent rescaling
+    te_rows = [_make_te_row(entry_price=2.95)]
+    chunk_rows = [_make_chunk_row(text="I entered at 295")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert len(findings) == 1
+    assert findings[0].severity == "high"
+    assert findings[0].x100_present is True
+    assert findings[0].literal_present is False
+
+
+def test_audit_value_not_in_chunk_emits_medium_finding() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [_make_te_row(entry_price=42.0)]
+    chunk_rows = [_make_chunk_row(text="I had a great trade")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert len(findings) == 1
+    assert findings[0].severity == "medium"
+
+
+def test_audit_self_correction_is_info_not_high() -> None:
+    """Chunk contains both '295' (x100 of extracted 2.95) and '2.95' literal."""
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [_make_te_row(entry_price=2.95)]
+    chunk_rows = [_make_chunk_row(text="I got in at 295 — I mean 2.95, sorry")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert len(findings) == 1
+    assert findings[0].severity == "info"
+    assert findings[0].literal_present is True
+
+
+def test_audit_missing_chunk_id_is_logged_and_skipped() -> None:
+    """TE row references a chunk_id with no matching chunk row → skip."""
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [_make_te_row(source_chunk_id=999, entry_price=42.0)]
+    chunk_rows = [_make_chunk_row(chunk_id=10, text="hi")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert findings == []
+
+
+def test_audit_multiple_price_fields_in_one_row() -> None:
+    from trading_wiki.extractors.pass2.price_audit import audit_trade_example_prices
+
+    te_rows = [
+        _make_te_row(entry_price=295.0, stop_price=290.0, target_price=310.0, exit_price=305.0)
+    ]
+    chunk_rows = [_make_chunk_row(text="entered 295 stopped 290 target 310 exited 305")]
+    findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
+    assert len(findings) == 4
+    assert all(f.severity == "info" for f in findings)
