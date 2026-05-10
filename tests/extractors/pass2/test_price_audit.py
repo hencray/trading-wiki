@@ -83,4 +83,4 @@ def test_normalize_chunk_preserves_commas_in_prose() -> None:
 
 
 def test_normalize_chunk_lowercases() -> None:
-    assert _normalize_chunk_text("NVDA Long").startswith("nvda")
+    assert _normalize_chunk_text("NVDA Long") == "nvda long"
