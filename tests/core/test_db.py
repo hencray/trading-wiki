@@ -6,6 +6,7 @@ import pytest
 
 from trading_wiki.core.db import (
     apply_migrations,
+    list_chunks_for_version_by_labels,
     list_concepts_for_content,
     list_content_summaries,
     list_trade_examples_for_content,
@@ -496,6 +497,67 @@ def test_load_chunk_by_id_returns_row(tmp_path):
     assert row["label"] == "example"
     assert row["text"] == "hello\nworld"
     assert row["content_id"] == content_id
+
+
+def test_list_chunks_for_version_by_labels_filters_by_labels_and_version(tmp_path: Path) -> None:
+    db_path = tmp_path / "research.db"
+    apply_migrations(db_path)
+    # seed two content rows + chunks with mixed labels at two prompt versions
+    cid_a = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="vid:a",
+            title="A",
+            created_at=datetime(2026, 5, 10),
+            ingested_at=datetime(2026, 5, 10),
+            raw_text="t",
+            segments=[Segment(seq=0, text="hi", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+    cid_b = save_content_record(
+        db_path,
+        ContentRecord(
+            source_type="local_video",
+            source_id="vid:b",
+            title="B",
+            created_at=datetime(2026, 5, 10),
+            ingested_at=datetime(2026, 5, 10),
+            raw_text="t",
+            segments=[Segment(seq=0, text="hi", start_seconds=0.0, end_seconds=1.0)],
+        ),
+    )
+    with sqlite3.connect(db_path) as conn:
+        for seq, (cid, label, version) in enumerate(
+            [
+                (cid_a, "example", "pass1-v1"),
+                (cid_a, "concept", "pass1-v1"),
+                (cid_a, "qa", "pass1-v1"),
+                (cid_b, "noise", "pass1-v1"),
+                (cid_b, "example", "pass1-v0"),  # different version, must be excluded
+            ]
+        ):
+            conn.execute(
+                """
+                INSERT INTO chunks
+                (content_id, seq, start_seg_seq, end_seg_seq, label, confidence,
+                 summary, text, prompt_version, created_at)
+                VALUES (?, ?, 0, 0, ?, 'high', 's', 't', ?, '2026-05-10')
+                """,
+                (cid, seq, label, version),
+            )
+        conn.commit()
+
+    rows = list_chunks_for_version_by_labels(
+        db_path,
+        labels=["example", "qa"],
+        prompt_version="pass1-v1",
+    )
+
+    assert sorted((r["content_id"], r["label"]) for r in rows) == [
+        (cid_a, "example"),
+        (cid_a, "qa"),
+    ]
 
 
 def test_load_chunk_by_id_returns_none_when_missing(tmp_path):

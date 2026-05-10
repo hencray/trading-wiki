@@ -241,6 +241,30 @@ def load_chunk_by_id(
         return dict(row) if row is not None else None
 
 
+def list_chunks_for_version_by_labels(
+    db_path: Path | str,
+    *,
+    labels: list[str],
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return chunk rows whose label is in ``labels`` at ``prompt_version``.
+
+    Used by the contamination-ablation sampler. Ordered deterministically by
+    (content_id, seq) so a fixed RNG seed picks the same sample.
+    """
+    if not labels:
+        return []
+    placeholders = ",".join("?" * len(labels))
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM chunks "
+            f"WHERE prompt_version = ? AND label IN ({placeholders}) "
+            f"ORDER BY content_id, seq",
+            (prompt_version, *labels),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def save_trade_examples(
     db_path: Path | str,
     *,
