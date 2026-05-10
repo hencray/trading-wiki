@@ -121,3 +121,70 @@ def sample_chunks_for_ablation(
         concept_priming=_sample_at_most(concept_pool, n_priming_concept, random.Random(seed + 1)),
         routing=_sample_at_most(routing_pool, n_routing, random.Random(seed + 2)),
     )
+
+
+# ─── Priming diff builder ──────────────────────────────────────────────────
+
+
+def _diff_fields(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
+    keys = set(a) | set(b)
+    return sorted(k for k in keys if a.get(k) != b.get(k))
+
+
+def build_priming_diff(
+    *,
+    chunk: dict[str, Any],
+    baseline: list[dict[str, Any]],
+    blind: list[dict[str, Any]],
+    match_key: str,
+) -> PrimingDiff:
+    """Pair-and-diff baseline vs blind entities for one chunk.
+
+    Pairs entities by ``match_key`` (string-equal). Unpaired baseline rows are
+    ``removed``; unpaired blind rows are ``added``; paired rows with any
+    differing field are ``field_changed``; paired rows with no difference are
+    ``identical``.
+    """
+    baseline_by_key = {row[match_key]: row for row in baseline}
+    blind_by_key = {row[match_key]: row for row in blind}
+
+    diffs: list[EntityDiff] = []
+    for key in baseline_by_key.keys() | blind_by_key.keys():
+        b_row = baseline_by_key.get(key)
+        n_row = blind_by_key.get(key)
+        if b_row is not None and n_row is None:
+            diffs.append(
+                EntityDiff(verdict="removed", baseline=b_row, blind=None, changed_fields=[])
+            )
+        elif b_row is None and n_row is not None:
+            diffs.append(EntityDiff(verdict="added", baseline=None, blind=n_row, changed_fields=[]))
+        else:
+            assert b_row is not None
+            assert n_row is not None
+            changed = _diff_fields(b_row, n_row)
+            diffs.append(
+                EntityDiff(
+                    verdict="field_changed" if changed else "identical",
+                    baseline=b_row,
+                    blind=n_row,
+                    changed_fields=changed,
+                )
+            )
+
+    if len(baseline) != len(blind):
+        overall: OverallVerdict = "count_changed"
+    elif any(d.verdict == "field_changed" for d in diffs):
+        overall = "field_changed"
+    else:
+        overall = "identical"
+
+    return PrimingDiff(
+        chunk_id=chunk["id"],
+        content_id=chunk["content_id"],
+        chunk_label=chunk["label"],
+        chunk_seq=chunk["seq"],
+        baseline_count=len(baseline),
+        blind_count=len(blind),
+        overall_verdict=overall,
+        entity_diffs=diffs,
+    )
