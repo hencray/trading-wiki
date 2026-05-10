@@ -44,6 +44,21 @@ Sidebar: pick a content row, choose entity types, sample mode (`stratified` / `a
 
 DB path defaults to `data/research.db`; override with `TRADING_WIKI_DB=...`.
 
+### Contamination ablation (v0.3 prompt-iteration backlog item 1)
+
+A one-off measurement harness that re-runs the Pass 2 extractors with "blind"
+prompt variants (priming sentence stripped) on a stratified sample, and runs
+the TE extractor on non-example chunks to audit routing miss rate. Outputs land
+under `data/ablation/<run_id>/` (gitignored).
+
+```bash
+uv run python -m trading_wiki.extractors.pass2.ablation \
+    --n-priming-te 10 --n-priming-concept 10 --n-routing 10 --seed 42
+```
+
+Hand-review the resulting `priming_diff.md` and `routing_audit.md`, then write
+the final recommendation into `summary.md`.
+
 ## Project shape
 
 - **`PROJECT_PLAN.md`** — authoritative phased plan, scope, and gates.
