@@ -76,3 +76,42 @@ def test_diff_handles_both_empty() -> None:
     assert diff.baseline_count == 0
     assert diff.blind_count == 0
     assert diff.entity_diffs == []
+
+
+def test_diff_same_count_different_entities_is_not_identical() -> None:
+    """Baseline and blind with same count but disjoint entity sets must not report identical."""
+    diff = build_priming_diff(
+        chunk=_chunk(),
+        baseline=[{"ticker": "NVDA"}],
+        blind=[{"ticker": "AAPL"}],
+        match_key="ticker",
+    )
+    # Counts equal (1 == 1) but entities are completely different.
+    # Reporting 'identical' here would be a silent miss — the harness would
+    # claim the prompt had no effect when in fact it swapped the entire output.
+    assert diff.overall_verdict != "identical"
+    verdicts = sorted(d.verdict for d in diff.entity_diffs)
+    assert verdicts == ["added", "removed"]
+
+
+def test_diff_strips_db_fields_from_baseline_rows() -> None:
+    """build_priming_diff must strip DB-internal fields even when baseline is passed
+    directly without pre-stripping (defense against caller-bypass)."""
+    diff = build_priming_diff(
+        chunk=_chunk(),
+        baseline=[
+            {
+                "id": 5,
+                "source_chunk_id": 9,
+                "prompt_version": "pass2-trade-example-v1",
+                "created_at": "2026-04-26T08:34:52",
+                "ticker": "NVDA",
+                "direction": "long",
+            }
+        ],
+        blind=[{"ticker": "NVDA", "direction": "long"}],
+        match_key="ticker",
+    )
+    assert diff.overall_verdict == "identical"
+    assert diff.entity_diffs[0].verdict == "identical"
+    assert diff.entity_diffs[0].changed_fields == []

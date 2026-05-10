@@ -56,8 +56,8 @@ def _example_audit() -> RoutingAudit:
                 chunk_id=10,
                 content_id=1,
                 chunk_label="qa",
-                chunk_text_excerpt="What about pivot? — long PACS at 18 stopped flat",
-                proposed_entities=[{"ticker": "PACS", "direction": "long"}],
+                chunk_text_excerpt="Generic chunk text for fixture",
+                proposed_entities=[{"ticker": "XTST", "direction": "long"}],
             )
         ],
         total_chunks_audited=10,

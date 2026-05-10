@@ -182,7 +182,13 @@ def build_priming_diff(
     ``removed``; unpaired blind rows are ``added``; paired rows with any
     differing field are ``field_changed``; paired rows with no difference are
     ``identical``.
+
+    Baseline rows are normalised via :func:`_strip_db_fields` at the function
+    boundary so callers cannot bypass the strip and re-introduce DB-internal
+    fields (``id``, ``source_chunk_id``, ``prompt_version``, ``created_at``)
+    into the diff.
     """
+    baseline = [_strip_db_fields(row) for row in baseline]
     baseline_by_key = {row[match_key]: row for row in baseline}
     blind_by_key = {row[match_key]: row for row in blind}
 
@@ -211,7 +217,7 @@ def build_priming_diff(
 
     if len(baseline) != len(blind):
         overall: OverallVerdict = "count_changed"
-    elif any(d.verdict == "field_changed" for d in diffs):
+    elif any(d.verdict in ("field_changed", "added", "removed") for d in diffs):
         overall = "field_changed"
     else:
         overall = "identical"
@@ -465,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         te_diffs.append(
             build_priming_diff(
                 chunk=chunk,
-                baseline=[_strip_db_fields(r) for r in baseline_rows],
+                baseline=baseline_rows,
                 blind=_entities_to_dicts(blind_entities),
                 match_key="ticker",
             )
@@ -490,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         concept_diffs.append(
             build_priming_diff(
                 chunk=chunk,
-                baseline=[_strip_db_fields(r) for r in baseline_rows],
+                baseline=baseline_rows,
                 blind=_entities_to_dicts(blind_concepts),
                 match_key="term",
             )
