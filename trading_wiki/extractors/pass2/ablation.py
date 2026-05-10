@@ -41,6 +41,23 @@ ROUTING_LABELS: tuple[str, ...] = (
 
 _OUTPUT_BASE_DIR = Path("data/ablation")
 
+_BASELINE_DB_FIELDS: frozenset[str] = frozenset(
+    {"id", "source_chunk_id", "prompt_version", "created_at"}
+)
+
+
+def _strip_db_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Return ``row`` minus DB-internal fields.
+
+    Baseline rows loaded from the DB include columns the blind extractor's
+    output doesn't have (the row's primary key, the source-chunk FK, the
+    prompt_version it was extracted under, and its created_at timestamp).
+    Comparing those fields against blind output always reports them as
+    ``changed_fields``, which inflates the diff's noise floor. Strip them
+    before passing baseline rows to ``build_priming_diff``.
+    """
+    return {k: v for k, v in row.items() if k not in _BASELINE_DB_FIELDS}
+
 
 # ─── Shared types (used across Tasks 6-11) ─────────────────────────────────
 
@@ -448,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         te_diffs.append(
             build_priming_diff(
                 chunk=chunk,
-                baseline=baseline_rows,
+                baseline=[_strip_db_fields(r) for r in baseline_rows],
                 blind=_entities_to_dicts(blind_entities),
                 match_key="ticker",
             )
@@ -473,7 +490,7 @@ def main(argv: list[str] | None = None) -> int:
         concept_diffs.append(
             build_priming_diff(
                 chunk=chunk,
-                baseline=baseline_rows,
+                baseline=[_strip_db_fields(r) for r in baseline_rows],
                 blind=_entities_to_dicts(blind_concepts),
                 match_key="term",
             )
