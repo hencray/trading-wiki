@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Trading-Wiki — Operating Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400;1,9..144,500&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0c0d10;
+    --ink-2: #14161b;
+    --ink-3: #1c1f26;
+    --rule: #2a2f39;
+    --bone: #ece4d3;
+    --bone-dim: #c5bda9;
+    --mute: #6b6d76;
+    --amber: #ffb547;
+    --amber-soft: #d49846;
+    --rust: #c75b3a;
+    --moss: #7fa860;
+    --sky: #6a92c2;
+    --violet: #9d7ec7;
+    --grid: rgba(255, 181, 71, 0.045);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--ink);
+    color: var(--bone);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+      radial-gradient(ellipse at top, rgba(255,181,71,0.06), transparent 60%);
+    background-size: 48px 48px, 48px 48px, 100% 100%;
+    background-position: -1px -1px, -1px -1px, 0 0;
+  }
+
+  ::selection { background: var(--amber); color: var(--ink); }
+
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  /* ============== HEADER ============== */
+  header.masthead {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 56px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  h1.title {
+    font-family: "Fraunces", serif;
+    font-weight: 300;
+    font-variation-settings: "opsz" 144;
+    font-size: clamp(48px, 7vw, 92px);
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    margin: 18px 0 14px;
+    color: var(--bone);
+  }
+
+  h1.title em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--amber);
+  }
+
+  .deck {
+    color: var(--bone-dim);
+    max-width: 60ch;
+    font-size: 14px;
+  }
+
+  .stamp {
+    text-align: right;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--mute);
+    border-left: 1px solid var(--rule);
+    padding-left: 24px;
+  }
+  .stamp b { color: var(--bone); font-weight: 500; }
+  .stamp .pulse {
+    display: inline-block;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 0 0 rgba(255,181,71,0.7);
+    animation: pulse 2.4s infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255,181,71,0.5); }
+    70%  { box-shadow: 0 0 0 12px rgba(255,181,71,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,181,71,0); }
+  }
+
+  /* ============== SUMMARY STRIP ============== */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid var(--rule);
+    margin-bottom: 64px;
+  }
+  .strip > div {
+    padding: 22px 24px;
+    border-right: 1px solid var(--rule);
+  }
+  .strip > div:last-child { border-right: 0; }
+  .strip .k {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-bottom: 8px;
+  }
+  .strip .v {
+    font-family: "Fraunces", serif;
+    font-size: 32px;
+    font-weight: 400;
+    font-variation-settings: "opsz" 60;
+    color: var(--bone);
+    line-height: 1;
+  }
+  .strip .v small {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--mute);
+    margin-left: 4px;
+  }
+
+  /* ============== SECTION HEADERS ============== */
+  .section-h {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin: 72px 0 28px;
+    border-top: 1px solid var(--rule);
+    padding-top: 28px;
+  }
+  .section-h .num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--amber);
+  }
+  .section-h h2 {
+    font-family: "Fraunces", serif;
+    font-weight: 400;
+    font-variation-settings: "opsz" 144;
+    font-size: 32px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .section-h .lede {
+    margin-left: auto;
+    color: var(--mute);
+    font-size: 12px;
+    max-width: 50ch;
+    text-align: right;
+  }
+
+  /* ============== TIMELINE ============== */
+  .timeline {
+    position: relative;
+    padding-left: 56px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: linear-gradient(to bottom,
+      var(--moss) 0%,
+      var(--moss) 22%,
+      var(--amber) 22%,
+      var(--amber) 33%,
+      var(--rule) 33%,
+      var(--rule) 100%);
+  }
+
+  .phase {
+    position: relative;
+    margin-bottom: 36px;
+    padding: 0;
+  }
+  .phase::before {
+    content: "";
+    position: absolute;
+    left: -45px;
+    top: 14px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 2px solid var(--rule);
+  }
+  .phase[data-status="done"]::before {
+    background: var(--moss);
+    border-color: var(--moss);
+    box-shadow: 0 0 0 4px rgba(127,168,96,0.12);
+  }
+  .phase[data-status="active"]::before {
+    background: var(--amber);
+    border-color: var(--amber);
+    box-shadow: 0 0 0 4px rgba(255,181,71,0.18);
+    animation: pulse-dot 2.4s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(255,181,71,0.18); }
+    50%      { box-shadow: 0 0 0 8px rgba(255,181,71,0.04); }
+  }
+  .phase[data-status="planning"]::before {
+    background: transparent;
+    border-color: var(--amber-soft);
+  }
+  .phase[data-status="skipped"]::before {
+    background: var(--ink);
+    border-color: var(--mute);
+  }
+
+  .phase-card {
+    border: 1px solid var(--rule);
+    background: var(--ink-2);
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .phase[data-status="active"] .phase-card {
+    border-color: var(--amber);
+    background: linear-gradient(180deg, rgba(255,181,71,0.04), transparent 40%), var(--ink-2);
+  }
+  .phase[data-status="done"] .phase-card {
+    border-color: rgba(127,168,96,0.3);
+  }
+
+  .phase-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .phase-tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--mute);
+    border: 1px solid var(--rule);
+    padding: 3px 8px;
+    text-transform: uppercase;
+  }
+  .phase[data-status="done"] .phase-tag    { color: var(--moss); border-color: rgba(127,168,96,0.4); }
+  .phase[data-status="active"] .phase-tag  { color: var(--amber); border-color: var(--amber); }
+  .phase[data-status="planning"] .phase-tag { color: var(--amber-soft); border-color: rgba(212,152,70,0.4); }
+  .phase[data-status="skipped"] .phase-tag { color: var(--mute); }
+
+  .phase-name {
+    font-family: "Fraunces", serif;
+    font-weight: 400;
+    font-variation-settings: "opsz" 100;
+    font-size: 24px;
+    letter-spacing: -0.005em;
+  }
+  .phase-name em {
+    font-style: italic;
+    color: var(--bone-dim);
+    font-size: 16px;
+    font-weight: 300;
+  }
+  .phase-effort {
+    font-size: 11px;
+    color: var(--mute);
+    text-align: right;
+    line-height: 1.4;
+  }
+  .phase-effort b { color: var(--bone); font-weight: 500; display: block; }
+
+  .phase-status {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 1px;
+  }
+  .ph-done    { background: rgba(127,168,96,0.15); color: var(--moss); }
+  .ph-active  { background: rgba(255,181,71,0.15); color: var(--amber); }
+  .ph-plan    { background: rgba(212,152,70,0.1); color: var(--amber-soft); }
+  .ph-skip    { background: rgba(107,109,118,0.15); color: var(--mute); }
+  .ph-todo    { background: transparent; color: var(--mute); border: 1px solid var(--rule); }
+
+  .phase-body {
+    padding: 22px 24px 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+  .phase-body > section h4 {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin: 0 0 10px;
+    font-weight: 500;
+  }
+  .phase-body p { margin: 0 0 10px; color: var(--bone-dim); font-size: 13px; }
+  .phase-body ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .phase-body li {
+    position: relative;
+    padding-left: 18px;
+    margin-bottom: 6px;
+    color: var(--bone);
+    font-size: 13px;
+  }
+  .phase-body li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--amber);
+    font-weight: 500;
+  }
+  .phase[data-status="done"] .phase-body li::before { content: "✓"; color: var(--moss); }
+
+  .gate-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .gate-pill {
+    font-size: 10px;
+    padding: 3px 8px;
+    border: 1px solid var(--rule);
+    color: var(--bone-dim);
+    letter-spacing: 0.05em;
+  }
+
+  /* ============== GAUNTLET ============== */
+  .gauntlet {
+    border: 1px solid var(--rule);
+    background: var(--ink-2);
+    padding: 28px 32px;
+    margin: 24px 0 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .gauntlet::after {
+    content: "GATE";
+    position: absolute;
+    right: -10px;
+    top: -10px;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 140px;
+    color: rgba(255,181,71,0.04);
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    pointer-events: none;
+  }
+  .gauntlet-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    margin: 24px 0 0;
+    border: 1px solid var(--rule);
+  }
+  .gate {
+    padding: 16px 14px;
+    border-right: 1px solid var(--rule);
+    background: var(--ink);
+    position: relative;
+  }
+  .gate:last-child { border-right: 0; }
+  .gate .g-num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 28px;
+    color: var(--amber);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .gate .g-name {
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--bone);
+  }
+  .gate .g-test {
+    font-size: 10px;
+    color: var(--mute);
+    line-height: 1.4;
+  }
+  .gauntlet-foot {
+    margin-top: 18px;
+    font-size: 11px;
+    color: var(--mute);
+    border-top: 1px dashed var(--rule);
+    padding-top: 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .gauntlet-foot b { color: var(--rust); font-weight: 500; }
+
+  /* ============== CAPABILITY MATRIX ============== */
+  .matrix {
+    border: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  .matrix table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .matrix th {
+    background: var(--ink-3);
+    padding: 12px 14px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mute);
+    border-bottom: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+  }
+  .matrix th:last-child { border-right: 0; }
+  .matrix td {
+    padding: 14px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+    color: var(--bone-dim);
+  }
+  .matrix td:last-child { border-right: 0; }
+  .matrix tr:last-child td { border-bottom: 0; }
+  .matrix tr.now td { background: rgba(255,181,71,0.04); color: var(--bone); }
+  .matrix tr.now td:first-child { border-left: 2px solid var(--amber); }
+  .matrix .ph-cell {
+    font-family: "Fraunces", serif;
+    font-size: 16px;
+    color: var(--bone);
+    width: 14%;
+  }
+  .matrix .ph-cell em { display: block; font-size: 10px; color: var(--mute); font-style: normal; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 2px;}
+
+  /* ============== CONSTRAINTS ============== */
+  .constraints {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .constraint {
+    border-left: 2px solid var(--rust);
+    padding: 4px 0 4px 18px;
+  }
+  .constraint h5 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--bone);
+    font-weight: 500;
+  }
+  .constraint p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--bone-dim);
+  }
+
+  /* ============== FOOTER ============== */
+  footer.foot {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--mute);
+  }
+  footer.foot em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--bone-dim);
+  }
+
+  /* ============== STAGGER ANIMATION ============== */
+  .reveal { opacity: 0; transform: translateY(8px); animation: reveal 0.6s forwards; }
+  @keyframes reveal { to { opacity: 1; transform: none; } }
+  .phase:nth-child(1) { animation-delay: 0.05s; }
+  .phase:nth-child(2) { animation-delay: 0.10s; }
+  .phase:nth-child(3) { animation-delay: 0.15s; }
+  .phase:nth-child(4) { animation-delay: 0.20s; }
+  .phase:nth-child(5) { animation-delay: 0.25s; }
+  .phase:nth-child(6) { animation-delay: 0.30s; }
+  .phase:nth-child(7) { animation-delay: 0.35s; }
+  .phase:nth-child(8) { animation-delay: 0.40s; }
+  .phase:nth-child(9) { animation-delay: 0.45s; }
+
+  @media (max-width: 880px) {
+    .strip { grid-template-columns: repeat(2, 1fr); }
+    .strip > div { border-bottom: 1px solid var(--rule); }
+    .phase-body { grid-template-columns: 1fr; }
+    .phase-head { grid-template-columns: auto 1fr; }
+    .phase-effort, .phase-status { grid-column: span 2; text-align: left; }
+    header.masthead { grid-template-columns: 1fr; }
+    .stamp { border-left: 0; padding-left: 0; text-align: left; }
+    .gauntlet-grid { grid-template-columns: repeat(2, 1fr); }
+    .gate { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .constraints { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- ===================== MASTHEAD ===================== -->
+  <header class="masthead reveal">
+    <div>
+      <div class="eyebrow">Operating Map · v0.3 [1/6] · 2026-05-10</div>
+      <h1 class="title">A wiki<br/>and, <em>maybe</em>,<br/>a trading bot.</h1>
+      <p class="deck">
+        Two deliverables, eight phases, seven gates. The wiki is the project.
+        The bot is the acid test of whether the wiki captured anything codifiable.
+        If nothing survives the gauntlet, the wiki still ships — that is the design,
+        not the failure mode.
+      </p>
+    </div>
+    <div class="stamp">
+      <span class="pulse"></span><b>STATUS · ACTIVE</b><br/>
+      Phase 2A · v0.3 backlog 1/6 shipped<br/>
+      Next · v0.3 remainder<br/><br/>
+      Branch · main · clean<br/>
+      Last commit · 01460db<br/>
+      merged today<br/>
+    </div>
+  </header>
+
+  <!-- ===================== TOP STRIP ===================== -->
+  <div class="strip">
+    <div>
+      <div class="k">Corpus</div>
+      <div class="v">12 <small>videos</small></div>
+    </div>
+    <div>
+      <div class="k">Extracted</div>
+      <div class="v">12 <small>trades</small> / 112 <small>concepts</small></div>
+    </div>
+    <div>
+      <div class="k">Tests</div>
+      <div class="v">239 <small>+ 3 integration</small></div>
+    </div>
+    <div>
+      <div class="k">Phases shipped</div>
+      <div class="v">1 <small>of 8 · 2A v0.3 [1/6]</small></div>
+    </div>
+  </div>
+
+  <!-- ===================== TIMELINE ===================== -->
+  <div class="section-h">
+    <span class="num">i.</span>
+    <h2>The phase ladder</h2>
+    <div class="lede">Each phase ends in a capability the next one depends on. Gates do not move.</div>
+  </div>
+
+  <div class="timeline">
+
+    <!-- PHASE 0 -->
+    <div class="phase reveal" data-status="skipped">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 0</span>
+          <div class="phase-name">Course smoke test <em>· codifiability gut check</em></div>
+          <div class="phase-effort"><b>2–4 h</b>skipped 2026-04-22</div>
+          <span class="phase-status ph-skip">Skipped</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>What it would have produced</h4>
+            <ul>
+              <li>One hand-drafted strategy spec from raw source</li>
+              <li>Tagged-assumption rate as a codifiability proxy</li>
+              <li>Pass / Ambiguous / Fail verdict before scaffolding</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Why we skipped</h4>
+            <p>User decision. The codifiability risk is now carried as a hazard into Phase 2/4 rather than answered up front. Skip does not generalise — every other phase remains non-negotiable.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 1 -->
+    <div class="phase reveal" data-status="done">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 1</span>
+          <div class="phase-name">Ingestion <em>· content → clean structured text</em></div>
+          <div class="phase-effort"><b>~30–60 h</b>shipped 2026-04-25</div>
+          <span class="phase-status ph-done">Complete</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>What we can do now</h4>
+            <ul>
+              <li>Ingest local video / YouTube / pasted Discord / pasted course-platform text</li>
+              <li>ffmpeg → mono mp3 → OpenAI Whisper transcribe</li>
+              <li>SHA-256 content-addressed storage on disk</li>
+              <li>SQLite store with yoyo migrations · structlog JSON logs</li>
+              <li>Pydantic v2 ContentRecord / Segment with extra="forbid"</li>
+              <li>One BaseHandler seam for new source types</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Cloud-portability invariant</h4>
+            <p>Phase 1 is the <em>only</em> step that may require local-only files. Everything from Phase 2 forward runs against committed transcripts + a rebuildable SQLite. This is what lets remote / iOS sessions work.</p>
+            <h4 style="margin-top:14px">Open follow-ups (not gates)</h4>
+            <div class="gate-row">
+              <span class="gate-pill">cli.py stub</span>
+              <span class="gate-pill">config.py empty</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 2 -->
+    <div class="phase reveal" data-status="active">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 2 · YOU ARE HERE</span>
+          <div class="phase-name">Knowledge extraction <em>· transcripts → structured graph</em></div>
+          <div class="phase-effort"><b>~60–120 h</b>v0.3 [1/6] just shipped</div>
+          <span class="phase-status ph-active">In progress</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>2A Multi-pass extraction · what works today</h4>
+            <ul>
+              <li><b>Pass 1</b> — chunk + classify (locked <code>pass1-v1</code>)</li>
+              <li><b>Pass 2</b> — TradeExample + Concept entity extraction (locked <code>pass2-trade-example-v1</code>, <code>pass2-concept-v1</code>)</li>
+              <li><b>2B</b> — Streamlit hand-review UI · stratified / random / all sampling · markdown findings file per content_id</li>
+              <li>Pass 2 idempotency via <code>pass2_runs</code> table — empty-result runs now properly recorded</li>
+              <li><b>v0.3 [1/6] · 2026-05-10</b> — contamination-ablation harness at <code>trading_wiki/extractors/pass2/ablation.py</code>; blind prompt variants; CLI + sampler + diff + audit + 4 markdown/JSON artifacts under gitignored <code>data/ablation/</code></li>
+            </ul>
+          </section>
+          <section>
+            <h4>v0.3 backlog · 1 of 6 shipped</h4>
+            <p style="margin-bottom:8px"><b>Contamination-check verdict (n=10/10/10, $0.34):</b> keep the priming sentence in both v1 prompts — Concept extractor moved on 10/10 chunks under blind; TE more robust at 5/10 identical. Pass 1 routing labels sound at n=10.</p>
+            <h4 style="margin-top:14px">v0.3 remainder</h4>
+            <ul>
+              <li>Strategy / Setup / Rule / MarketCondition extractors (cross-chunk · needs Pass 3)</li>
+              <li>Pass 3 entity-resolution scaffolding · embed + similarity merge</li>
+              <li>Concept dedup</li>
+              <li>5 remaining prompt-iteration items — silent price rescaling, trade-attribution semantics, concept-vs-metaphor classification, term-naming bias, synonym dedup</li>
+            </ul>
+            <h4 style="margin-top:14px">v0.4 follow-ups (from v0.3 [1/6])</h4>
+            <div class="gate-row">
+              <span class="gate-pill">TE entry-price scale spot-check</span>
+              <span class="gate-pill">Concept-prompt revision</span>
+            </div>
+            <h4 style="margin-top:14px">Deferred</h4>
+            <div class="gate-row">
+              <span class="gate-pill">2C chart extraction</span>
+              <span class="gate-pill">Pass 4 relationships</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 3 -->
+    <div class="phase reveal" data-status="todo">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 3</span>
+          <div class="phase-name">Research wiki <em>· browsable markdown over the graph</em></div>
+          <div class="phase-effort"><b>~20–40 h</b>after Phase 2</div>
+          <span class="phase-status ph-todo">Not started</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>Auto-generated markdown per entity, browsable in Obsidian</li>
+              <li><code>index.md</code> + <code>log.md</code> + <code>schema.md</code> · co-evolves with project</li>
+              <li>"Answers become pages" — synthesized Q&A files back into the corpus</li>
+              <li>Lint pass for contradictions / stale claims / orphans</li>
+              <li>Full provenance: every claim links back to a source excerpt + timestamp</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Architecture (Karpathy pattern, hardened)</h4>
+            <p>Three layers: raw sources → typed SQLite skeleton → markdown wiki flesh. We keep the typed schema underneath. Pure-LLM wikis collapse past ~1000 files; financial stakes make that unacceptable.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 4 -->
+    <div class="phase reveal" data-status="planning">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 4</span>
+          <div class="phase-name">Strategy formalization <em>· wiki → deterministic Python</em></div>
+          <div class="phase-effort"><b>~40–80 h</b>budget 3× if motivation matters</div>
+          <span class="phase-status ph-plan">Planning</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>3–5 candidate strategies with formal <code>spec.md</code> + working Python</li>
+              <li>Common <code>Strategy</code> ABC reused verbatim by backtest, paper, live — no adapter</li>
+              <li>Signal / Setup / Strategy abstraction layers</li>
+              <li>Pinned indicator library (<code>pandas-ta</code>) wrapped, versioned</li>
+              <li>Setup detector validated against extracted trade examples — cheap Gate 0</li>
+            </ul>
+          </section>
+          <section>
+            <h4>The honest part</h4>
+            <p>Most human-intensive phase. Every ambiguity in a wiki rule becomes either a concrete predicate on OHLCV + indicators, or an explicit tagged assumption. Expect 30–50% tagged assumptions on first pass; the L2 gap drives a chunk of those.</p>
+            <h4 style="margin-top:14px">Fuzzy strategies</h4>
+            <p>Anything that resists rules ("read the tape") is parked in <code>_fuzzy_backlog.md</code>, not dropped. Future-ML problem, not v1.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 5 -->
+    <div class="phase reveal" data-status="todo">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 5</span>
+          <div class="phase-name">Backtesting <em>· the 7-gate gauntlet</em></div>
+          <div class="phase-effort"><b>~60–120 h</b>strict, every strategy</div>
+          <span class="phase-status ph-todo">Not started</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>Custom event-driven runner on top of the Phase 4 <code>Strategy</code> ABC</li>
+              <li>Polygon Developer-tier data, Parquet local cache, point-in-time universes</li>
+              <li>Realistic costs: spread crossing, slippage as f(size/volume), borrow fees</li>
+              <li>Dated, immutable reports — never overwritten, never edited post-hoc</li>
+              <li>Research journal with hypothesis logged <em>before</em> each run</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Expected attrition</h4>
+            <p>2–4 survivors per 10 candidates. Starting with 3–5 candidates → expect <b>1–2 survivors</b> to Phase 6. If everything passes, the testing is broken.</p>
+            <h4 style="margin-top:14px">Kill rule</h4>
+            <p>Zero survivors after two course dumps → primary scope formally becomes the wiki. Phases 6–7 archive as future work.</p>
+          </section>
+        </div>
+      </div>
+      <div class="gauntlet">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 style="margin:0;font-family:Fraunces,serif;font-weight:400;font-size:20px">The 7-Gate Gauntlet</h3>
+          <span style="font-size:11px;color:var(--mute)">Every strategy. Every time. No exceptions.</span>
+        </div>
+        <div class="gauntlet-grid">
+          <div class="gate"><div class="g-num">01</div><div class="g-name">Dry run</div><div class="g-test">A week of bars, verbose logs. Catches inverted signals, never-exits.</div></div>
+          <div class="gate"><div class="g-num">02</div><div class="g-name">Single-period</div><div class="g-test">2-year window, realistic costs. Equity curve resemble the source's claim?</div></div>
+          <div class="gate"><div class="g-num">03</div><div class="g-name">Multi-regime</div><div class="g-test">2017 calm · Mar–Jun 2020 · 2022 bear · 2023 AI bubble · 2024 chop.</div></div>
+          <div class="gate"><div class="g-num">04</div><div class="g-name">Param sensitivity</div><div class="g-test">Sweep ±50% on every knob. Big P&L swings = overfit.</div></div>
+          <div class="gate"><div class="g-num">05</div><div class="g-name">Walk-forward</div><div class="g-test">Optimize → trade T→T+6mo locked → re-optimize. Real-world simulation.</div></div>
+          <div class="gate"><div class="g-num">06</div><div class="g-name">Cost stress</div><div class="g-test">2× costs · 2× slippage. Especially load-bearing without L2.</div></div>
+          <div class="gate"><div class="g-num">07</div><div class="g-name">Kill decision</div><div class="g-test">Pass → Phase 6. Fail → archived with post-mortem. Never deleted.</div></div>
+        </div>
+        <div class="gauntlet-foot">
+          <span>Gate 0 lives in Phase 4 · setup detector vs extracted trade examples</span>
+          <span><b>Gates do not move</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 5.5 -->
+    <div class="phase reveal" data-status="planning">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 5½</span>
+          <div class="phase-name">Strategy command center <em>· cross-cutting operator UI</em></div>
+          <div class="phase-effort"><b>cross-cutting</b>scaffold in 5 · grow in 6, 7</div>
+          <span class="phase-status ph-plan">Planning</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>Streamlit operator UI: portfolio · strategies · candidates · review · ingest · system</li>
+              <li>Scanner · runs setup detection on <em>every</em> strategy, including research-only · never writes orders</li>
+              <li>Retroactive 30/60/90d mini-backtest for honest like-for-like comparison</li>
+              <li>Monte Carlo projection panel — labeled "PROJECTION not forecast"</li>
+              <li>Risk-gate utilization · distance to killswitches</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Why now</h4>
+            <p>Watching a research-only strategy fire on garbage in real time is a cheap way to learn it's bad before you spend weeks backtesting it. The dashboard becomes a research accelerator, not just a monitor.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 6 -->
+    <div class="phase reveal" data-status="todo">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 6</span>
+          <div class="phase-name">Paper trading <em>· prove the system, not the strategy</em></div>
+          <div class="phase-effort"><b>≥ 6 weeks</b>calendar gate · cannot be compressed</div>
+          <span class="phase-status ph-todo">Not started</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>Strategies running on Alpaca paper continuously</li>
+              <li>Reconciliation loop · order routing · partial fills · halts</li>
+              <li>Killswitches verified to fire · recovery verified to work</li>
+              <li>Slippage tracker · live fills vs backtest assumptions</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Duration gate (rules-based)</h4>
+            <ul>
+              <li>≥ 6 weeks calendar time</li>
+              <li>≥ 40 trades</li>
+              <li>≥ 1 market event survived</li>
+              <li>≥ 1 killswitch triggered + ≥ 1 recovery verified</li>
+            </ul>
+            <p style="margin-top:8px;color:var(--rust);font-size:11px">"When I feel ready" is not a gate.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 7 -->
+    <div class="phase reveal" data-status="todo">
+      <div class="phase-card">
+        <div class="phase-head">
+          <span class="phase-tag">Phase 7</span>
+          <div class="phase-name">Live trading <em>· $1–2k starter, frozen rules</em></div>
+          <div class="phase-effort"><b>only if 6 passed</b>PDT must be resolved</div>
+          <span class="phase-status ph-todo">Not started</span>
+        </div>
+        <div class="phase-body">
+          <section>
+            <h4>Capability target</h4>
+            <ul>
+              <li>Same code path as backtest + paper · only the executor changes</li>
+              <li>Tightened risk limits · daily / weekly / monthly archived reports</li>
+              <li>Incident log on system page</li>
+            </ul>
+          </section>
+          <section>
+            <h4>The one rule</h4>
+            <p style="color:var(--rust)"><b>No new strategies or logic after entering live.</b> Anything new goes back through Phase 5 → 6 first. This is the discipline that prevents a clean system from drifting into chaos.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================== CAPABILITY MATRIX ===================== -->
+  <div class="section-h">
+    <span class="num">ii.</span>
+    <h2>What the system can do, by phase</h2>
+    <div class="lede">Read this column-by-column. Each row is a capability, each phase tells you whether it's online.</div>
+  </div>
+
+  <div class="matrix">
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Inputs accepted</th>
+          <th>What it produces</th>
+          <th>Acid test</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ph-cell">Phase 1<em>shipped</em></td>
+          <td>Local video · YouTube · pasted Discord · pasted course text</td>
+          <td>Cleaned transcripts · content-addressed storage · SQLite content/segments tables</td>
+          <td>Round-trip a video and read it back from the DB</td>
+        </tr>
+        <tr class="now">
+          <td class="ph-cell">Phase 2<em>here · v0.3 [1/6]</em></td>
+          <td>Stored content from Phase 1 + locked v1 chunks</td>
+          <td>Classified chunks · TradeExample / Concept entities · review findings · idempotent re-runs · contamination-ablation harness</td>
+          <td>Hand-review passes 5/5 · ablation confirms v1 prompts hold up to priming-line removal</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 3<em>not started</em></td>
+          <td>Phase 2 graph + provenance</td>
+          <td>Auto-generated markdown wiki · index/log/schema · lint pass</td>
+          <td>Browse it in Obsidian and feel oriented; LLM Q&A returns sourced answers</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 4<em>planning</em></td>
+          <td>Wiki strategies with codeability ≥ 3, credibility tier ≤ 2</td>
+          <td>3–5 spec.md + Python files · Strategy ABC · indicator library</td>
+          <td>Detector fires on the dates the source said it should</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 5</td>
+          <td>Strategy specs + Polygon historical data</td>
+          <td>Dated immutable reports · regime breakdowns · sensitivity heatmaps · journal</td>
+          <td>1–2 strategies survive all 7 gates with realistic costs</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 5½</td>
+          <td>Backtest reports + scanner candidates + (later) live state</td>
+          <td>Streamlit operator UI · scanner running on every strategy</td>
+          <td>You can answer "what is this strategy doing right now" in one click</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 6</td>
+          <td>Survivors of Phase 5 + Alpaca paper</td>
+          <td>≥ 6 weeks of paper fills · killswitch + recovery evidence</td>
+          <td>Survives at least one market event without operator intervention</td>
+        </tr>
+        <tr>
+          <td class="ph-cell">Phase 7</td>
+          <td>Survivors of Phase 6 + $1–2k Alpaca live</td>
+          <td>Real fills · incident log · archived performance reports</td>
+          <td>Frozen rules. No drift. The wiki is still the deliverable.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===================== CONSTRAINTS ===================== -->
+  <div class="section-h">
+    <span class="num">iii.</span>
+    <h2>Load-bearing constraints</h2>
+    <div class="lede">These shape every design choice downstream. Don't quietly relax them.</div>
+  </div>
+
+  <div class="constraints">
+    <div class="constraint">
+      <h5>No Level 2 data in v1</h5>
+      <p>Polygon Developer tier doesn't include order-book depth. The v1 source's "watching it build" filter has to use a 1-min volume proxy. This is the project's biggest codeability risk; Gate 6 is designed to expose it.</p>
+    </div>
+    <div class="constraint">
+      <h5>PDT rule at &lt; $25k</h5>
+      <p>Intraday strategy + $1–2k starter capital collides with Pattern Day Trader limits. Must be resolved by end of Phase 6 — otherwise the bot can't execute its own playbook.</p>
+    </div>
+    <div class="constraint">
+      <h5>Universe = NASDAQ / QQQ + liquidity filter</h5>
+      <p>Stocks only, point-in-time membership snapshotted monthly. Survivorship-free backtests demand it.</p>
+    </div>
+    <div class="constraint">
+      <h5>Cloud-portability seam</h5>
+      <p>Only Phase 1 may require local files. From Phase 2 forward, everything runs against committed transcripts + a rebuildable SQLite. Remote / iOS sessions depend on this not breaking.</p>
+    </div>
+    <div class="constraint">
+      <h5>Public-repo redaction</h5>
+      <p>Repo is public/MIT. Source brand, author, distinctive coined terms, and specific extracted entities never enter tracked files. Specifics live in the local DB and gitignored notes.</p>
+    </div>
+    <div class="constraint">
+      <h5>Backtest reports are immutable</h5>
+      <p>Dated, never overwritten, never edited post-hoc. Hypothesis logged <em>before</em> the run. This is the single discipline that prevents overfitting-by-iteration.</p>
+    </div>
+  </div>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="foot">
+    <div>
+      <em>If &lt; 1 strategy survives Phase 5 after a full course dump, the wiki is the win.</em><br/>
+      <span style="color:var(--mute)">Do not lower gates. Do not force marginal candidates through.</span>
+    </div>
+    <div style="text-align:right">
+      Updated 2026-05-10 · main · 01460db<br/>
+      <span style="color:var(--mute)">trading_wiki/</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // open in browser stagger; nothing fancy
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    el.style.animationDelay = (i * 0.04) + 's';
+  });
+</script>
+
+</body>
+</html>
