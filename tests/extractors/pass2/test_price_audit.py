@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
+
+import pytest
+
 from trading_wiki.extractors.pass2.price_audit import (
     _chunk_contains_value,
     _normalize_chunk_text,
@@ -109,3 +113,85 @@ def test_chunk_match_at_string_boundaries() -> None:
     assert _chunk_contains_value("295", "295") is True
     assert _chunk_contains_value("price 295", "295") is True
     assert _chunk_contains_value("295 dollars", "295") is True
+
+
+def test_classify_severity_literal_present_is_info() -> None:
+    from trading_wiki.extractors.pass2.price_audit import _classify_severity
+
+    assert (
+        _classify_severity(
+            literal_present=True,
+            x10_present=False,
+            div10_present=False,
+            x100_present=False,
+            div100_present=False,
+        )
+        == "info"
+    )
+
+
+def test_classify_severity_literal_present_overrides_rescaled() -> None:
+    """Both present (speaker self-correction) → info, not high."""
+    from trading_wiki.extractors.pass2.price_audit import _classify_severity
+
+    assert (
+        _classify_severity(
+            literal_present=True,
+            x10_present=False,
+            div10_present=False,
+            x100_present=True,
+            div100_present=False,
+        )
+        == "info"
+    )
+
+
+def test_classify_severity_only_rescaled_is_high() -> None:
+    from trading_wiki.extractors.pass2.price_audit import _classify_severity
+
+    assert (
+        _classify_severity(
+            literal_present=False,
+            x10_present=False,
+            div10_present=False,
+            x100_present=False,
+            div100_present=True,
+        )
+        == "high"
+    )
+
+
+def test_classify_severity_none_present_is_medium() -> None:
+    from trading_wiki.extractors.pass2.price_audit import _classify_severity
+
+    assert (
+        _classify_severity(
+            literal_present=False,
+            x10_present=False,
+            div10_present=False,
+            x100_present=False,
+            div100_present=False,
+        )
+        == "medium"
+    )
+
+
+def test_price_audit_finding_is_frozen_dataclass() -> None:
+    from trading_wiki.extractors.pass2.price_audit import PriceAuditFinding
+
+    finding = PriceAuditFinding(
+        te_id=1,
+        chunk_id=10,
+        content_id=2,
+        field="entry_price",
+        extracted_value=295.0,
+        literal_present=True,
+        x10_present=False,
+        div10_present=False,
+        x100_present=False,
+        div100_present=False,
+        severity="info",
+    )
+    assert dataclasses.is_dataclass(finding)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        finding.te_id = 99  # type: ignore[misc]

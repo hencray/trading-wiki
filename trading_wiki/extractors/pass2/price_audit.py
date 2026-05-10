@@ -6,6 +6,8 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-te-price-audit-design.md
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from typing import Literal
 
 
 def _format_value(value: float) -> set[str]:
@@ -68,3 +70,47 @@ def _chunk_contains_value(normalized_text: str, value_str: str) -> bool:
     """
     pattern = rf"(?<![\d.]){re.escape(value_str)}(?![\d])"
     return re.search(pattern, normalized_text) is not None
+
+
+Severity = Literal["high", "medium", "info"]
+PriceField = Literal["entry_price", "stop_price", "target_price", "exit_price"]
+
+
+@dataclass(frozen=True)
+class PriceAuditFinding:
+    """One audit row: one extracted price vs. its source chunk."""
+
+    te_id: int
+    chunk_id: int
+    content_id: int
+    field: PriceField
+    extracted_value: float
+    literal_present: bool
+    x10_present: bool
+    div10_present: bool
+    x100_present: bool
+    div100_present: bool
+    severity: Severity
+
+
+def _classify_severity(
+    *,
+    literal_present: bool,
+    x10_present: bool,
+    div10_present: bool,
+    x100_present: bool,
+    div100_present: bool,
+) -> Severity:
+    """Classify a finding.
+
+    - ``info`` — literal present (extraction matches the chunk; no flag)
+    - ``high`` — literal absent AND at least one rescaled variant present
+      (likely silent rescaling)
+    - ``medium`` — literal absent AND no rescaled variant present
+      (extracted value not in chunk at all)
+    """
+    if literal_present:
+        return "info"
+    if x10_present or div10_present or x100_present or div100_present:
+        return "high"
+    return "medium"
