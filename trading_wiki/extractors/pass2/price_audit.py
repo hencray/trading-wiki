@@ -70,7 +70,7 @@ def _chunk_contains_value(normalized_text: str, value_str: str) -> bool:
     already have been lowercased and stripped of ``$`` / thousands commas via
     :func:`_normalize_chunk_text`.
     """
-    pattern = rf"(?<![\d.]){re.escape(value_str)}(?![\d])"
+    pattern = rf"(?<![\d.]){re.escape(value_str)}(?![\d])(?!\.\d)"
     return re.search(pattern, normalized_text) is not None
 
 
