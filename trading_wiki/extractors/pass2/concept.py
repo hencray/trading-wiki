@@ -51,36 +51,44 @@ def extract_concepts_for_chunk(
     *,
     chunk_id: int,
     db_path: Path | None = None,
+    prompt_path: Path | None = None,
+    prompt_version: str | None = None,
+    persist: bool = True,
 ) -> tuple[list[Concept], UsageRecord]:
     """Run the Concept extractor against one chunk_id.
 
-    Returns ``(entities, usage)``. On idempotency hit, ``entities`` is rebuilt
-    from the stored rows (with ``related_terms`` JSON-decoded back to a list)
-    and ``usage`` is a zero-cost record.
+    Returns ``(entities, usage)``. With ``persist=True`` (default), idempotency
+    is checked against (chunk_id, prompt_version); on a hit, entities are
+    rebuilt from the stored rows (with ``related_terms`` JSON-decoded back to
+    a list) and ``usage`` is a zero-cost record. With ``persist=False``, the
+    LLM is always called and no rows are written — used by the
+    contamination-ablation harness.
 
     Spec §5.4 data flow.
     """
     db_path = Path(db_path) if db_path is not None else Settings().db_path
+    prompt_path = Path(prompt_path) if prompt_path is not None else PROMPT_PASS2_CONCEPT_PATH
+    prompt_version = prompt_version or PROMPT_VERSION_PASS2_CONCEPT
 
     chunk = load_chunk_by_id(db_path, chunk_id=chunk_id)
     if chunk is None:
         raise LookupError(f"unknown chunk_id={chunk_id}")
 
-    if pass2_run_exists(
+    if persist and pass2_run_exists(
         db_path,
         source_chunk_id=chunk_id,
         extractor="concept",
-        prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        prompt_version=prompt_version,
     ):
         existing = load_concepts_for_version(
             db_path,
             source_chunk_id=chunk_id,
-            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+            prompt_version=prompt_version,
         )
         _log.info(
             "pass2.concept.idempotent_skip",
             chunk_id=chunk_id,
-            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+            prompt_version=prompt_version,
             existing_count=len(existing),
         )
         entities = [
@@ -89,7 +97,7 @@ def extract_concepts_for_chunk(
         ]
         return entities, _zero_usage()
 
-    system_prompt = PROMPT_PASS2_CONCEPT_PATH.read_text(encoding="utf-8")
+    system_prompt = prompt_path.read_text(encoding="utf-8")
     output, usage, _history = call_structured(
         model=MODEL_PASS2,
         system=system_prompt,
@@ -97,23 +105,26 @@ def extract_concepts_for_chunk(
         schema=ConceptOutput,
     )
 
-    save_concepts(
-        db_path,
-        source_chunk_id=chunk_id,
-        prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
-        output=output,
-    )
-    record_pass2_run(
-        db_path,
-        source_chunk_id=chunk_id,
-        extractor="concept",
-        prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
-        entity_count=len(output.entities),
-    )
+    if persist:
+        save_concepts(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version=prompt_version,
+            output=output,
+        )
+        record_pass2_run(
+            db_path,
+            source_chunk_id=chunk_id,
+            extractor="concept",
+            prompt_version=prompt_version,
+            entity_count=len(output.entities),
+        )
+
     _log.info(
         "pass2.concept.extract.ok",
         chunk_id=chunk_id,
-        prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        prompt_version=prompt_version,
+        persist=persist,
         entity_count=len(output.entities),
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,

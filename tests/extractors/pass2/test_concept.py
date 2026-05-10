@@ -6,9 +6,11 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from trading_wiki.config import PROMPT_VERSION_PASS2_CONCEPT
 from trading_wiki.core.db import (
     apply_migrations,
     load_concepts_for_version,
+    record_pass2_run,
     save_chunks,
     save_content_record,
 )
@@ -287,3 +289,98 @@ class TestExtractConceptsForChunk:
         assert "Concept" in kwargs["system"]
         assert kwargs["messages"] == [{"role": "user", "content": "A pivot is a level."}]
         assert kwargs["schema"] is ConceptOutput
+
+    @patch("trading_wiki.extractors.pass2.concept.call_structured")
+    def test_extract_concepts_persist_false_skips_db_writes(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        out = ConceptOutput(
+            entities=[
+                Concept(
+                    term="pivot",
+                    definition="Average of prior period's high, low, and close.",
+                    related_terms=[],
+                    confidence="high",
+                ),
+            ]
+        )
+        mock_call.return_value = (out, _stub_usage(), [])
+
+        entities, _ = extract_concepts_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            persist=False,
+        )
+        assert len(entities) == 1
+        assert entities[0].term == "pivot"
+
+        # No rows should land in either table when persist=False.
+        rows = load_concepts_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        )
+        assert rows == []
+        with sqlite3.connect(db_path) as conn:
+            run_count = conn.execute("SELECT COUNT(*) FROM pass2_runs").fetchone()[0]
+            concept_count = conn.execute("SELECT COUNT(*) FROM concepts").fetchone()[0]
+        assert run_count == 0
+        assert concept_count == 0
+
+    @patch("trading_wiki.extractors.pass2.concept.call_structured")
+    def test_extract_concepts_persist_false_skips_idempotency_check(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        # Pre-record a Pass 2 run that would normally short-circuit a persist=True call.
+        record_pass2_run(
+            db_path,
+            source_chunk_id=chunk_id,
+            extractor="concept",
+            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+            entity_count=0,
+        )
+
+        mock_call.return_value = (ConceptOutput(entities=[]), _stub_usage(), [])
+
+        entities, _ = extract_concepts_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            persist=False,
+        )
+        assert entities == []
+
+        # The LLM IS called — persist=False bypasses the idempotency short-circuit.
+        mock_call.assert_called_once()
+
+        # No new rows landed; the pre-seeded pass2_runs row is still the only one.
+        with sqlite3.connect(db_path) as conn:
+            run_count = conn.execute("SELECT COUNT(*) FROM pass2_runs").fetchone()[0]
+            concept_count = conn.execute("SELECT COUNT(*) FROM concepts").fetchone()[0]
+        assert run_count == 1  # the pre-seeded one, unchanged
+        assert concept_count == 0
+
+    @patch("trading_wiki.extractors.pass2.concept.call_structured")
+    def test_extract_concepts_uses_custom_prompt_path(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        custom_prompt = tmp_path / "custom_prompt.md"
+        custom_prompt.write_text("CUSTOM CONCEPT PROMPT", encoding="utf-8")
+
+        mock_call.return_value = (ConceptOutput(entities=[]), _stub_usage(), [])
+
+        extract_concepts_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            prompt_path=custom_prompt,
+            prompt_version="custom-v1",
+            persist=False,
+        )
+
+        kwargs = mock_call.call_args.kwargs
+        assert kwargs["system"] == "CUSTOM CONCEPT PROMPT"
