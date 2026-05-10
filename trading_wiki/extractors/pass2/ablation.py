@@ -188,3 +188,42 @@ def build_priming_diff(
         overall_verdict=overall,
         entity_diffs=diffs,
     )
+
+
+# ─── Routing audit builder ─────────────────────────────────────────────────
+
+_EXCERPT_MAX_CHARS = 600
+
+
+def build_routing_audit(
+    *,
+    non_example_chunks: list[dict[str, Any]],
+    blind_results: dict[int, list[dict[str, Any]]],
+) -> RoutingAudit:
+    """Filter to chunks where blind TE returned >= 1 entity; format excerpts.
+
+    The chunk text excerpt is truncated to ``_EXCERPT_MAX_CHARS`` characters
+    with ``"..."`` appended when truncated. Entries are sorted by chunk_id
+    ascending. ``total_chunks_audited`` reflects the size of
+    ``non_example_chunks`` (the denominator) — not the number of entries
+    returned.
+    """
+    entries: list[RoutingAuditEntry] = []
+    for chunk in non_example_chunks:
+        proposed = blind_results.get(chunk["id"], [])
+        if not proposed:
+            continue
+        text: str = chunk["text"]
+        excerpt = text if len(text) <= _EXCERPT_MAX_CHARS else text[:_EXCERPT_MAX_CHARS] + "..."
+        entries.append(
+            RoutingAuditEntry(
+                chunk_id=chunk["id"],
+                content_id=chunk["content_id"],
+                chunk_label=chunk["label"],
+                chunk_text_excerpt=excerpt,
+                proposed_entities=proposed,
+            )
+        )
+
+    entries.sort(key=lambda e: e.chunk_id)
+    return RoutingAudit(entries=entries, total_chunks_audited=len(non_example_chunks))
