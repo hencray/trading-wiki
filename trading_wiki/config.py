@@ -18,6 +18,11 @@ PROMPT_PASS2_TRADE_EXAMPLE_PATH = _REPO_ROOT / "prompts" / "pass2_trade_example.
 PROMPT_VERSION_PASS2_CONCEPT = "pass2-concept-v1"
 PROMPT_PASS2_CONCEPT_PATH = _REPO_ROOT / "prompts" / "pass2_concept.md"
 
+PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH = _REPO_ROOT / "prompts" / "pass2_trade_example_blind.md"
+PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND = "pass2-trade-example-blind-v1"
+PROMPT_PASS2_CONCEPT_BLIND_PATH = _REPO_ROOT / "prompts" / "pass2_concept_blind.md"
+PROMPT_VERSION_PASS2_CONCEPT_BLIND = "pass2-concept-blind-v1"
+
 # Pass 2 label-based routing (spec §4). Keys are entity-type identifiers used
 # internally by the dispatcher; values are the set of Pass 1 chunk labels that
 # route to that entity-type's extractor. Strict — labels not in any value-set
