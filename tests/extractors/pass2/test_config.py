@@ -31,3 +31,35 @@ def test_pass2_config_constants_resolve():
         "concept": {"concept", "qa"},
     }
     assert expected_routes == PASS2_LABEL_ROUTES
+
+
+def test_pass2_trade_example_v2_constants_present() -> None:
+    from trading_wiki.config import (
+        PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+    )
+
+    assert PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2 == "pass2-trade-example-v2"
+    assert PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH.is_file()
+    assert PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH.name == "pass2_trade_example_v2.md"
+
+
+def test_pass2_trade_example_v2_prompt_adds_only_numeric_scale_rule() -> None:
+    from trading_wiki.config import (
+        PROMPT_PASS2_TRADE_EXAMPLE_PATH,
+        PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+    )
+
+    v1 = PROMPT_PASS2_TRADE_EXAMPLE_PATH.read_text()
+    v2 = PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH.read_text()
+
+    # v2 must contain the new rule
+    assert "Preserve numeric scale" in v2
+    assert "Never apply a unit conversion" in v2
+    # v1 must NOT contain the new rule (sanity check we didn't edit v1)
+    assert "Preserve numeric scale" not in v1
+    # v2 must contain every line of v1 except for the new bullet's surroundings
+    # (sanity: it's a strict superset of v1 verbatim)
+    for line in v1.splitlines():
+        if line.strip():
+            assert line in v2, f"v2 missing v1 line: {line!r}"
