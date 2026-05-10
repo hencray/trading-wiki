@@ -5,8 +5,11 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-te-price-audit-design.md
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 import structlog
@@ -196,3 +199,126 @@ def audit_trade_example_prices(
                 )
             )
     return findings
+
+
+_OUTPUT_BASE_DIR = Path("data/audits")
+
+
+def _excerpt(text: str, value_str: str, *, radius: int = 200) -> str | None:
+    """Return ±``radius`` chars around the first occurrence of ``value_str``
+    in ``text`` (digit-boundary-aware). Returns None if not found.
+    """
+    pattern = rf"(?<![\d.]){re.escape(value_str)}(?![\d])(?!\.\d)"
+    match = re.search(pattern, text)
+    if match is None:
+        return None
+    start = max(0, match.start() - radius)
+    end = min(len(text), match.end() + radius)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(text) else ""
+    return f"{prefix}{text[start:end]}{suffix}"
+
+
+def _count_by_severity(findings: list[PriceAuditFinding]) -> dict[str, int]:
+    counts: dict[str, int] = {"high": 0, "medium": 0, "info": 0}
+    for f in findings:
+        counts[f.severity] += 1
+    counts["total"] = len(findings)
+    return counts
+
+
+def _render_findings_md(
+    findings: list[PriceAuditFinding],
+    chunk_texts: dict[int, str],
+) -> str:
+    counts = _count_by_severity(findings)
+    lines = [
+        "# TE Price Audit Findings",
+        "",
+        f"- High: {counts['high']}",
+        f"- Medium: {counts['medium']}",
+        f"- Info (literal-present, not flagged): {counts['info']}",
+        f"- Total audited: {counts['total']}",
+        "",
+    ]
+    for severity in ("high", "medium"):
+        flagged = [f for f in findings if f.severity == severity]
+        if not flagged:
+            continue
+        lines.append(f"## {severity.capitalize()} severity")
+        lines.append("")
+        for f in flagged:
+            lines.append(
+                f"- **te_id={f.te_id}** chunk_id={f.chunk_id} "
+                f"content_id={f.content_id} field=`{f.field}` "
+                f"extracted_value=`{f.extracted_value}`"
+            )
+            variants_present = {
+                "literal": f.literal_present,
+                "x10": f.x10_present,
+                "div10": f.div10_present,
+                "x100": f.x100_present,
+                "div100": f.div100_present,
+            }
+            present = ", ".join(k for k, v in variants_present.items() if v) or "(none)"
+            lines.append(f"  - variants present in chunk: {present}")
+            text = chunk_texts.get(f.chunk_id, "")
+            normalized = _normalize_chunk_text(text)
+            for variant_name, value_set in (
+                ("literal", _format_value(f.extracted_value)),
+                ("x10", _format_value(f.extracted_value * 10)),
+                ("div10", _format_value(f.extracted_value / 10)),
+                ("x100", _format_value(f.extracted_value * 100)),
+                ("div100", _format_value(f.extracted_value / 100)),
+            ):
+                excerpt: str | None = None
+                for variant in value_set:
+                    excerpt = _excerpt(normalized, variant)
+                    if excerpt is not None:
+                        lines.append(f"  - excerpt around `{variant}` ({variant_name}):")
+                        lines.append(f"    > {excerpt}")
+                        break
+            lines.append("")
+    return "\n".join(lines)
+
+
+def write_audit_artifacts(
+    *,
+    findings: list[PriceAuditFinding],
+    chunk_texts: dict[int, str],
+    output_base_dir: Path | None = None,
+) -> Path:
+    """Write ``findings.json`` and ``findings.md`` to a fresh run directory.
+
+    Returns the run directory path.
+    """
+    base = output_base_dir if output_base_dir is not None else _OUTPUT_BASE_DIR
+    run_id = datetime.now().isoformat(timespec="seconds").replace(":", "-")
+    run_dir = base / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    payload: dict[str, Any] = {
+        "run_id": run_id,
+        "counts": _count_by_severity(findings),
+        "findings": [
+            {
+                "te_id": f.te_id,
+                "chunk_id": f.chunk_id,
+                "content_id": f.content_id,
+                "field": f.field,
+                "extracted_value": f.extracted_value,
+                "literal_present": f.literal_present,
+                "x10_present": f.x10_present,
+                "div10_present": f.div10_present,
+                "x100_present": f.x100_present,
+                "div100_present": f.div100_present,
+                "severity": f.severity,
+            }
+            for f in findings
+        ],
+    }
+    (run_dir / "findings.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (run_dir / "findings.md").write_text(
+        _render_findings_md(findings, chunk_texts), encoding="utf-8"
+    )
+    return run_dir

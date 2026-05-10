@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import json
+from pathlib import Path
 
 import pytest
 
@@ -292,3 +294,62 @@ def test_chunk_still_matches_value_followed_by_sentence_period() -> None:
 def test_chunk_does_not_match_decimal_inside_longer_decimal() -> None:
     """2.95 should not match inside 2.95.0 — unusual but defensible."""
     assert _chunk_contains_value("price 2.95.0", "2.95") is False
+
+
+def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:
+    from trading_wiki.extractors.pass2.price_audit import (
+        PriceAuditFinding,
+        write_audit_artifacts,
+    )
+
+    findings = [
+        PriceAuditFinding(
+            te_id=1,
+            chunk_id=10,
+            content_id=2,
+            field="entry_price",
+            extracted_value=2.95,
+            literal_present=False,
+            x10_present=False,
+            div10_present=False,
+            x100_present=True,
+            div100_present=False,
+            severity="high",
+        ),
+        PriceAuditFinding(
+            te_id=2,
+            chunk_id=11,
+            content_id=2,
+            field="entry_price",
+            extracted_value=295.0,
+            literal_present=True,
+            x10_present=False,
+            div10_present=False,
+            x100_present=False,
+            div100_present=False,
+            severity="info",
+        ),
+    ]
+    chunk_texts = {10: "I entered at 295 yesterday", 11: "Long NVDA at 295"}
+
+    run_dir = write_audit_artifacts(
+        findings=findings,
+        chunk_texts=chunk_texts,
+        output_base_dir=tmp_path,
+    )
+
+    assert run_dir.is_dir()
+    assert run_dir.parent == tmp_path
+
+    findings_json = json.loads((run_dir / "findings.json").read_text(encoding="utf-8"))
+    assert findings_json["counts"] == {"high": 1, "medium": 0, "info": 1, "total": 2}
+    assert len(findings_json["findings"]) == 2
+
+    md = (run_dir / "findings.md").read_text(encoding="utf-8")
+    # High and medium are surfaced in the report; info is summarized but not
+    # rendered with chunk excerpts.
+    assert "## High severity" in md
+    assert "te_id=1" in md
+    assert "## Medium severity" not in md  # 0 medium findings
+    # Chunk excerpt for the high finding should be in the report
+    assert "entered at 295" in md
