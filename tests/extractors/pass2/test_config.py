@@ -50,8 +50,8 @@ def test_pass2_trade_example_v2_prompt_adds_only_numeric_scale_rule() -> None:
         PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
     )
 
-    v1 = PROMPT_PASS2_TRADE_EXAMPLE_PATH.read_text()
-    v2 = PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH.read_text()
+    v1 = PROMPT_PASS2_TRADE_EXAMPLE_PATH.read_text(encoding="utf-8")
+    v2 = PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH.read_text(encoding="utf-8")
 
     # v2 must contain the new rule
     assert "Preserve numeric scale" in v2
@@ -60,6 +60,7 @@ def test_pass2_trade_example_v2_prompt_adds_only_numeric_scale_rule() -> None:
     assert "Preserve numeric scale" not in v1
     # v2 must contain every line of v1 except for the new bullet's surroundings
     # (sanity: it's a strict superset of v1 verbatim)
+    v2_lines = v2.splitlines()
     for line in v1.splitlines():
         if line.strip():
-            assert line in v2, f"v2 missing v1 line: {line!r}"
+            assert line in v2_lines, f"v2 missing v1 line: {line!r}"
