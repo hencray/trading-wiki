@@ -6,9 +6,11 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from trading_wiki.config import PROMPT_VERSION_PASS2_TRADE_EXAMPLE
 from trading_wiki.core.db import (
     apply_migrations,
     load_trade_examples_for_version,
+    record_pass2_run,
     save_chunks,
     save_content_record,
 )
@@ -388,3 +390,103 @@ class TestExtractTradeExamplesForChunk:
         assert "TradeExample" in kwargs["system"]
         assert kwargs["messages"] == [{"role": "user", "content": "hello"}]
         assert kwargs["schema"] is TradeExampleOutput
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_extract_trade_examples_persist_false_skips_db_writes(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        out = TradeExampleOutput(
+            entities=[
+                TradeExample(
+                    ticker="NVDA",
+                    direction="long",
+                    instrument_type="stock",
+                    entry_description="i",
+                    exit_description="o",
+                    outcome_text="w",
+                    confidence="high",
+                ),
+            ]
+        )
+        mock_call.return_value = (out, _stub_usage(), [])
+
+        entities, _ = extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            persist=False,
+        )
+        assert len(entities) == 1
+        assert entities[0].ticker == "NVDA"
+
+        # No rows should land in either table when persist=False.
+        rows = load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk_id,
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        )
+        assert rows == []
+        with sqlite3.connect(db_path) as conn:
+            run_count = conn.execute("SELECT COUNT(*) FROM pass2_runs").fetchone()[0]
+            te_count = conn.execute("SELECT COUNT(*) FROM trade_examples").fetchone()[0]
+        assert run_count == 0
+        assert te_count == 0
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_extract_trade_examples_persist_false_skips_idempotency_check(
+        self, mock_call, tmp_path
+    ):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        # Pre-record a Pass 2 run that would normally short-circuit a persist=True call.
+        record_pass2_run(
+            db_path,
+            source_chunk_id=chunk_id,
+            extractor="trade_example",
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+            entity_count=0,
+        )
+
+        mock_call.return_value = (TradeExampleOutput(entities=[]), _stub_usage(), [])
+
+        entities, _ = extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            persist=False,
+        )
+        assert entities == []
+
+        # The LLM IS called — persist=False bypasses the idempotency short-circuit.
+        mock_call.assert_called_once()
+
+        # No new rows landed; the pre-seeded pass2_runs row is still the only one.
+        with sqlite3.connect(db_path) as conn:
+            run_count = conn.execute("SELECT COUNT(*) FROM pass2_runs").fetchone()[0]
+            te_count = conn.execute("SELECT COUNT(*) FROM trade_examples").fetchone()[0]
+        assert run_count == 1  # the pre-seeded one, unchanged
+        assert te_count == 0
+
+    @patch("trading_wiki.extractors.pass2.trade_example.call_structured")
+    def test_extract_trade_examples_uses_custom_prompt_path(self, mock_call, tmp_path):
+        db_path = tmp_path / "research.db"
+        apply_migrations(db_path)
+        chunk_id = _seed_chunk(db_path)
+
+        custom_prompt = tmp_path / "custom_prompt.md"
+        custom_prompt.write_text("CUSTOM SYSTEM PROMPT", encoding="utf-8")
+
+        mock_call.return_value = (TradeExampleOutput(entities=[]), _stub_usage(), [])
+
+        extract_trade_examples_for_chunk(
+            chunk_id=chunk_id,
+            db_path=db_path,
+            prompt_path=custom_prompt,
+            prompt_version="custom-v1",
+            persist=False,
+        )
+
+        kwargs = mock_call.call_args.kwargs
+        assert kwargs["system"] == "CUSTOM SYSTEM PROMPT"
