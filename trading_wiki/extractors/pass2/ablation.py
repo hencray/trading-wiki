@@ -5,14 +5,32 @@ Spec: docs/superpowers/specs/2026-05-10-pass2-contamination-ablation-design.md
 
 from __future__ import annotations
 
+import argparse
 import json
 import random
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from trading_wiki.config import PROMPT_VERSION_PASS1
-from trading_wiki.core.db import list_chunks_for_version_by_labels
+from trading_wiki.config import (
+    PROMPT_PASS2_CONCEPT_BLIND_PATH,
+    PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+    PROMPT_VERSION_PASS1,
+    PROMPT_VERSION_PASS2_CONCEPT,
+    PROMPT_VERSION_PASS2_CONCEPT_BLIND,
+    PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+    PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+)
+from trading_wiki.core.db import (
+    list_chunks_for_version_by_labels,
+    load_concepts_for_version,
+    load_trade_examples_for_version,
+)
+from trading_wiki.core.llm import UsageRecord
+from trading_wiki.core.secrets import Settings
+from trading_wiki.extractors.pass2.concept import extract_concepts_for_chunk
+from trading_wiki.extractors.pass2.trade_example import extract_trade_examples_for_chunk
 
 ROUTING_LABELS: tuple[str, ...] = (
     "strategy",
@@ -20,6 +38,8 @@ ROUTING_LABELS: tuple[str, ...] = (
     "market_commentary",
     "noise",
 )
+
+_OUTPUT_BASE_DIR = Path("data/ablation")
 
 
 # ─── Shared types (used across Tasks 6-11) ─────────────────────────────────
@@ -370,3 +390,148 @@ def write_run_artifacts(
         ),
         encoding="utf-8",
     )
+
+
+# ─── CLI ───────────────────────────────────────────────────────────────────
+
+
+def _entities_to_dicts(entities: list[Any]) -> list[dict[str, Any]]:
+    return [e.model_dump() if hasattr(e, "model_dump") else dict(e) for e in entities]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass2.ablation",
+        description="Run the Pass 2 contamination-ablation harness.",
+    )
+    parser.add_argument("--n-priming-te", type=int, default=10)
+    parser.add_argument("--n-priming-concept", type=int, default=10)
+    parser.add_argument("--n-routing", type=int, default=10)
+    parser.add_argument("--seed", type=int, default=42)
+    args = parser.parse_args(argv)
+
+    db_path = Settings().db_path
+    samples = sample_chunks_for_ablation(
+        db_path=db_path,
+        n_priming_te=args.n_priming_te,
+        n_priming_concept=args.n_priming_concept,
+        n_routing=args.n_routing,
+        seed=args.seed,
+    )
+
+    total_in = 0
+    total_out = 0
+    total_cost = 0.0
+
+    def _accumulate(usage: UsageRecord) -> None:
+        nonlocal total_in, total_out, total_cost
+        total_in += usage.input_tokens
+        total_out += usage.output_tokens
+        total_cost += usage.cost_estimate_usd
+
+    # TE priming arm
+    te_diffs: list[PrimingDiff] = []
+    for chunk in samples.te_priming:
+        baseline_rows = load_trade_examples_for_version(
+            db_path,
+            source_chunk_id=chunk["id"],
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        )
+        blind_entities, usage = extract_trade_examples_for_chunk(
+            chunk_id=chunk["id"],
+            db_path=db_path,
+            prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+            persist=False,
+        )
+        _accumulate(usage)
+        te_diffs.append(
+            build_priming_diff(
+                chunk=chunk,
+                baseline=baseline_rows,
+                blind=_entities_to_dicts(blind_entities),
+                match_key="ticker",
+            )
+        )
+
+    # Concept priming arm
+    concept_diffs: list[PrimingDiff] = []
+    for chunk in samples.concept_priming:
+        baseline_rows = load_concepts_for_version(
+            db_path,
+            source_chunk_id=chunk["id"],
+            prompt_version=PROMPT_VERSION_PASS2_CONCEPT,
+        )
+        blind_concepts, usage = extract_concepts_for_chunk(
+            chunk_id=chunk["id"],
+            db_path=db_path,
+            prompt_path=PROMPT_PASS2_CONCEPT_BLIND_PATH,
+            prompt_version=PROMPT_VERSION_PASS2_CONCEPT_BLIND,
+            persist=False,
+        )
+        _accumulate(usage)
+        concept_diffs.append(
+            build_priming_diff(
+                chunk=chunk,
+                baseline=baseline_rows,
+                blind=_entities_to_dicts(blind_concepts),
+                match_key="term",
+            )
+        )
+
+    # Routing arm — run blind TE extractor over non-example chunks
+    routing_blind_results: dict[int, list[dict[str, Any]]] = {}
+    for chunk in samples.routing:
+        blind_entities, usage = extract_trade_examples_for_chunk(
+            chunk_id=chunk["id"],
+            db_path=db_path,
+            prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+            prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+            persist=False,
+        )
+        _accumulate(usage)
+        routing_blind_results[chunk["id"]] = _entities_to_dicts(blind_entities)
+
+    routing_audit = build_routing_audit(
+        non_example_chunks=samples.routing,
+        blind_results=routing_blind_results,
+    )
+
+    run_id = datetime.now().isoformat(timespec="seconds").replace(":", "-")
+    config = AblationConfig(
+        run_id=run_id,
+        seed=args.seed,
+        n_priming_te=args.n_priming_te,
+        n_priming_concept=args.n_priming_concept,
+        n_routing=args.n_routing,
+        sampled_chunk_ids={
+            "te_priming": [c["id"] for c in samples.te_priming],
+            "concept_priming": [c["id"] for c in samples.concept_priming],
+            "routing": [c["id"] for c in samples.routing],
+        },
+        total_cost_usd=total_cost,
+        total_input_tokens=total_in,
+        total_output_tokens=total_out,
+    )
+
+    run_dir = _OUTPUT_BASE_DIR / run_id
+    write_run_artifacts(
+        run_dir=run_dir,
+        config=config,
+        te_priming_diffs=te_diffs,
+        concept_priming_diffs=concept_diffs,
+        routing_audit=routing_audit,
+    )
+
+    print(f"Wrote ablation artifacts to {run_dir}")
+    print(
+        f"TE priming: {len(te_diffs)} diffs · "
+        f"Concept priming: {len(concept_diffs)} diffs · "
+        f"Routing: {len(routing_audit.entries)}/{routing_audit.total_chunks_audited} "
+        f"misses · cost ~${total_cost:.4f}"
+    )
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
