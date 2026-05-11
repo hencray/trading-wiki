@@ -26,6 +26,10 @@ def _example_config(run_id: str = "2026-05-10T18-32-00") -> AblationConfig:
         total_cost_usd=2.50,
         total_input_tokens=1000,
         total_output_tokens=500,
+        te_test_prompt_path="prompts/pass2_trade_example_blind.md",
+        te_test_prompt_version="pass2-trade-example-blind-v1",
+        concept_test_prompt_path="prompts/pass2_concept_blind.md",
+        concept_test_prompt_version="pass2-concept-blind-v1",
     )
 
 

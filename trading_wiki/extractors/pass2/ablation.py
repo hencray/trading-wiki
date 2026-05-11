@@ -118,6 +118,10 @@ class AblationConfig:
     total_cost_usd: float
     total_input_tokens: int
     total_output_tokens: int
+    te_test_prompt_path: str
+    te_test_prompt_version: str
+    concept_test_prompt_path: str
+    concept_test_prompt_version: str
 
 
 # ─── Sampler ───────────────────────────────────────────────────────────────
@@ -386,6 +390,10 @@ def write_run_artifacts(
                 "total_cost_usd": config.total_cost_usd,
                 "total_input_tokens": config.total_input_tokens,
                 "total_output_tokens": config.total_output_tokens,
+                "te_test_prompt_path": config.te_test_prompt_path,
+                "te_test_prompt_version": config.te_test_prompt_version,
+                "concept_test_prompt_path": config.concept_test_prompt_path,
+                "concept_test_prompt_version": config.concept_test_prompt_version,
             },
             indent=2,
             sort_keys=True,
@@ -437,12 +445,57 @@ def main(argv: list[str] | None = None) -> int:
         default="te,concept,routing",
         help="Comma-separated subset of arms to run. Default: te,concept,routing.",
     )
+    parser.add_argument(
+        "--te-test-prompt-path",
+        type=Path,
+        default=None,
+        help="Override path for the TE test prompt (default: blind).",
+    )
+    parser.add_argument(
+        "--te-test-prompt-version",
+        type=str,
+        default=None,
+        help="Override version label for the TE test prompt (default: blind).",
+    )
+    parser.add_argument(
+        "--concept-test-prompt-path",
+        type=Path,
+        default=None,
+        help="Override path for the Concept test prompt (default: blind).",
+    )
+    parser.add_argument(
+        "--concept-test-prompt-version",
+        type=str,
+        default=None,
+        help="Override version label for the Concept test prompt (default: blind).",
+    )
     args = parser.parse_args(argv)
 
     arms = {a.strip() for a in args.arms.split(",") if a.strip()}
     unknown = arms - {"te", "concept", "routing"}
     if unknown:
         parser.error(f"--arms: unknown value(s) {sorted(unknown)}")
+
+    te_test_prompt_path: Path = (
+        args.te_test_prompt_path
+        if args.te_test_prompt_path is not None
+        else PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH
+    )
+    te_test_prompt_version: str = (
+        args.te_test_prompt_version
+        if args.te_test_prompt_version is not None
+        else PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND
+    )
+    concept_test_prompt_path: Path = (
+        args.concept_test_prompt_path
+        if args.concept_test_prompt_path is not None
+        else PROMPT_PASS2_CONCEPT_BLIND_PATH
+    )
+    concept_test_prompt_version: str = (
+        args.concept_test_prompt_version
+        if args.concept_test_prompt_version is not None
+        else PROMPT_VERSION_PASS2_CONCEPT_BLIND
+    )
 
     db_path = Settings().db_path
     samples = sample_chunks_for_ablation(
@@ -475,8 +528,8 @@ def main(argv: list[str] | None = None) -> int:
             blind_entities, usage = extract_trade_examples_for_chunk(
                 chunk_id=chunk["id"],
                 db_path=db_path,
-                prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
-                prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+                prompt_path=te_test_prompt_path,
+                prompt_version=te_test_prompt_version,
                 persist=False,
             )
             _accumulate(usage)
@@ -501,8 +554,8 @@ def main(argv: list[str] | None = None) -> int:
             blind_concepts, usage = extract_concepts_for_chunk(
                 chunk_id=chunk["id"],
                 db_path=db_path,
-                prompt_path=PROMPT_PASS2_CONCEPT_BLIND_PATH,
-                prompt_version=PROMPT_VERSION_PASS2_CONCEPT_BLIND,
+                prompt_path=concept_test_prompt_path,
+                prompt_version=concept_test_prompt_version,
                 persist=False,
             )
             _accumulate(usage)
@@ -522,8 +575,8 @@ def main(argv: list[str] | None = None) -> int:
             blind_entities, usage = extract_trade_examples_for_chunk(
                 chunk_id=chunk["id"],
                 db_path=db_path,
-                prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
-                prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+                prompt_path=te_test_prompt_path,
+                prompt_version=te_test_prompt_version,
                 persist=False,
             )
             _accumulate(usage)
@@ -549,6 +602,10 @@ def main(argv: list[str] | None = None) -> int:
         total_cost_usd=total_cost,
         total_input_tokens=total_in,
         total_output_tokens=total_out,
+        te_test_prompt_path=str(te_test_prompt_path),
+        te_test_prompt_version=te_test_prompt_version,
+        concept_test_prompt_path=str(concept_test_prompt_path),
+        concept_test_prompt_version=concept_test_prompt_version,
     )
 
     run_dir = _OUTPUT_BASE_DIR / run_id

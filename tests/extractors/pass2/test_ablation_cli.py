@@ -238,3 +238,117 @@ def test_cli_arms_defaults_preserve_three_arm_behavior(
     # TE priming (1) + routing (1) = 2 TE calls; concept priming (1) = 1 concept
     assert te_calls == 2
     assert concept_calls == 1
+
+
+def test_cli_te_test_prompt_path_overrides_blind_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When --te-test-prompt-path is passed, the TE extractor is called with
+    that path instead of the default blind path.
+    """
+    db_path = tmp_path / "research.db"
+    _seed_minimal_corpus(db_path)
+
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    captured_kwargs: list[dict[str, Any]] = []
+
+    def _capture_te(**kwargs: Any) -> Any:
+        captured_kwargs.append(dict(kwargs))
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_trade_examples_for_chunk",
+        _capture_te,
+    )
+
+    custom_path = tmp_path / "custom_te_prompt.md"
+    custom_path.write_text("custom prompt body")
+
+    rc = main(
+        [
+            "--n-priming-te",
+            "1",
+            "--n-priming-concept",
+            "0",
+            "--n-routing",
+            "0",
+            "--seed",
+            "7",
+            "--arms",
+            "te",
+            "--te-test-prompt-path",
+            str(custom_path),
+            "--te-test-prompt-version",
+            "pass2-trade-example-v2",
+        ]
+    )
+
+    assert rc == 0
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0]["prompt_path"] == custom_path
+    assert captured_kwargs[0]["prompt_version"] == "pass2-trade-example-v2"
+
+
+def test_cli_default_test_prompts_are_blind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No --*-test-prompt-* flags → harness uses blind paths/versions."""
+    from trading_wiki.config import (
+        PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND,
+    )
+
+    db_path = tmp_path / "research.db"
+    _seed_minimal_corpus(db_path)
+
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    captured_kwargs: list[dict[str, Any]] = []
+
+    def _capture_te(**kwargs: Any) -> Any:
+        captured_kwargs.append(dict(kwargs))
+        return ([], UsageRecord(model="m", input_tokens=0, output_tokens=0, cost_estimate_usd=0.0))
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.ablation.extract_trade_examples_for_chunk",
+        _capture_te,
+    )
+
+    rc = main(
+        [
+            "--n-priming-te",
+            "1",
+            "--n-priming-concept",
+            "0",
+            "--n-routing",
+            "0",
+            "--seed",
+            "7",
+            "--arms",
+            "te",
+        ]
+    )
+
+    assert rc == 0
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0]["prompt_path"] == PROMPT_PASS2_TRADE_EXAMPLE_BLIND_PATH
+    assert captured_kwargs[0]["prompt_version"] == PROMPT_VERSION_PASS2_TRADE_EXAMPLE_BLIND
