@@ -57,12 +57,15 @@ Ingestion (raw video → transcript) is the **only** strictly-local step. Phase 
 | `trading_wiki/extractors/pass2/__main__.py` | `python -m trading_wiki.extractors.pass2 --content-id N` entry; delegates to `pass2.main()` |
 | `trading_wiki/extractors/pass2/trade_example.py` | TradeExample Pydantic schemas + `extract_trade_examples_for_chunk` |
 | `trading_wiki/extractors/pass2/concept.py` | Concept Pydantic schemas + `extract_concepts_for_chunk` |
+| `trading_wiki/extractors/pass2/price_audit.py` | Phase 2A v0.3 read-only TE price-rescaling audit: variant generator + digit-boundary scanner + severity classifier + JSON/MD artifact writer + `python -m` CLI. |
+| `trading_wiki/extractors/pass2/ablation.py` | Phase 2A v0.3 contamination/prompt-revision ablation harness: stratified sampler + per-chunk diff + 4-artifact writer; CLI supports `--arms` filter and per-arm test-prompt overrides for both contamination and prompt-revision use cases. |
 | `trading_wiki/review/sampling.py` | Pure sample picker for the review UI: `ReviewItem` dataclass + `sample_items` with `stratified` / `all` / `random` modes |
 | `trading_wiki/review/findings.py` | Markdown findings file I/O for the review UI: `Finding` dataclass, `read_findings`, `append_finding`, `reviewed_ids`. Single source of truth for "what's been reviewed" |
 | `trading_wiki/review/app.py` | Streamlit review page (run: `uv run streamlit run trading_wiki/review/app.py`). View-only — calls into `sampling`, `findings`, and DB helpers |
 | `prompts/pass1.md` | Pass 1 system prompt; version-stamped via `PROMPT_VERSION_PASS1` |
 | `prompts/pass2_trade_example.md` | Pass 2 TradeExample system prompt; version-stamped via `PROMPT_VERSION_PASS2_TRADE_EXAMPLE` |
 | `prompts/pass2_concept.md` | Pass 2 Concept system prompt; version-stamped via `PROMPT_VERSION_PASS2_CONCEPT` |
+| `prompts/pass2_trade_example_v2.md` | Pass 2 TradeExample system prompt v2 (`pass2-trade-example-v2`): strict superset of v1 with one explicit "Preserve numeric scale" rule. |
 | `migrations/` | numbered `.sql` files applied by `yoyo` (0001 = content + segments, 0002 = chunks, 0003 = trade_examples, 0004 = concepts) |
 | `tests/` | pytest suite; mirrors `trading_wiki/` package layout. `tests/fixtures/` holds shared synthetic transcripts. Integration tests are opt-in via `pytest -m integration` |
 
