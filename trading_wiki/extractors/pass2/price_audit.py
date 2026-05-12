@@ -334,9 +334,13 @@ def _load_te_rows_and_chunks(
     db_path: Path,
     *,
     content_id: int | None,
+    prompt_version: str = PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Load TE rows (at the locked v1 prompt_version) plus all chunks they
+    """Load TE rows at the given ``prompt_version`` plus all chunks they
     reference. If ``content_id`` is None, load across all content rows.
+
+    ``prompt_version`` defaults to the locked production v1 version so
+    existing callers and tests are unaffected.
     """
     te_rows: list[dict[str, Any]] = []
     if content_id is not None:
@@ -345,7 +349,7 @@ def _load_te_rows_and_chunks(
         content_ids = [int(c["id"]) for c in list_content_summaries(db_path)]
     for cid in content_ids:
         for row in list_trade_examples_for_content(db_path, content_id=cid):
-            if row["prompt_version"] != PROMPT_VERSION_PASS2_TRADE_EXAMPLE:
+            if row["prompt_version"] != prompt_version:
                 continue
             te_rows.append(dict(row))
 

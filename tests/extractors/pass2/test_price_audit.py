@@ -453,3 +453,46 @@ def test_price_audit_module_help_exits_zero() -> None:
     assert "price_audit" in proc.stdout
     assert "--content-id" in proc.stdout
     assert "--all" in proc.stdout
+
+
+def test_load_te_rows_filters_to_specified_prompt_version(tmp_path: Path) -> None:
+    """_load_te_rows_and_chunks must filter by the prompt_version parameter,
+    not always the locked v1 default."""
+    from trading_wiki.config import (
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+    )
+    from trading_wiki.extractors.pass2.price_audit import _load_te_rows_and_chunks
+
+    db_path = tmp_path / "research.db"
+    _seed_audit_corpus(db_path)
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO trade_examples
+            (source_chunk_id, ticker, direction, instrument_type,
+             trade_date, entry_price, stop_price, target_price, exit_price,
+             entry_description, exit_description, outcome_text,
+             outcome_classification, lessons, confidence,
+             prompt_version, created_at)
+            VALUES (?, 'NVDA', 'long', 'stock',
+                    NULL, 300.0, NULL, NULL, NULL,
+                    'long at 300', 'flat', 'ok',
+                    'scratch', NULL, 'high',
+                    ?, '2026-05-11')
+            """,
+            (chunk_id, PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2),
+        )
+        conn.commit()
+
+    v1_rows, _ = _load_te_rows_and_chunks(
+        db_path, content_id=None, prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE
+    )
+    v2_rows, _ = _load_te_rows_and_chunks(
+        db_path, content_id=None, prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2
+    )
+    assert len(v1_rows) == 1
+    assert v1_rows[0]["entry_price"] == 295.0
+    assert len(v2_rows) == 1
+    assert v2_rows[0]["entry_price"] == 300.0
