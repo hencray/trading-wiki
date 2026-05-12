@@ -147,11 +147,14 @@ def embed_concepts(
         return len(rows), token_count
 
 
+DEFAULT_TOP_K = 20
+
+
 def find_candidate_pairs(
     db_path: Path,
     *,
     threshold: float = DEFAULT_THRESHOLD,
-    top_k: int = 10,
+    top_k: int = DEFAULT_TOP_K,
 ) -> list[CandidatePair]:
     """Find pairs of concepts whose embeddings have cosine similarity
     ``>= threshold``. Excludes self-matches and de-dupes (a,b) vs (b,a).
@@ -318,6 +321,7 @@ def resolve_concepts(
     openai_client: Any,
     anthropic_client: Any,
     threshold: float = DEFAULT_THRESHOLD,
+    top_k: int = DEFAULT_TOP_K,
     embedding_model: str = EMBEDDING_MODEL,
     embedding_model_version: str = EMBEDDING_MODEL_VERSION,
     prompt_version: str = "pass2-concept-v1",
@@ -333,7 +337,7 @@ def resolve_concepts(
         model=embedding_model,
         prompt_version=prompt_version,
     )
-    pairs = find_candidate_pairs(db_path, threshold=threshold)
+    pairs = find_candidate_pairs(db_path, threshold=threshold, top_k=top_k)
 
     verifications: list[dict[str, Any]] = []
     total_llm_cost = 0.0
@@ -420,3 +424,100 @@ def _canonical_for(concept_id: int, same_groups: dict[int, set[int]]) -> int:
         if concept_id in members:
             return canonical
     return concept_id
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass3.concept_resolver",
+        description=(
+            "Phase 2A Pass 3 — resolve duplicate Concept entities via "
+            "OpenAI embeddings + sqlite-vec similarity + Opus 4.7 verification."
+        ),
+    )
+    parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=None,
+        help="Override the production DB path. Defaults to Settings().db_path.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=DEFAULT_THRESHOLD,
+        help=f"Cosine-similarity threshold (default {DEFAULT_THRESHOLD}).",
+    )
+    parser.add_argument(
+        "--prompt-version",
+        type=str,
+        default="pass2-concept-v1",
+        help="Concept prompt_version to resolve (default pass2-concept-v1).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Embed missing concepts and list candidate pairs without LLM "
+            "verification or DB writes to concept_resolutions."
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    from trading_wiki.core.secrets import Settings
+
+    settings = Settings()
+    db_path = args.db_path if args.db_path is not None else settings.db_path
+
+    from openai import OpenAI
+
+    if settings.openai_api_key is None:
+        raise SystemExit("OPENAI_API_KEY required for Pass 3 embeddings.")
+    openai_client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
+
+    if args.dry_run:
+        rows, tokens = embed_concepts(
+            db_path,
+            openai_client=openai_client,
+            prompt_version=args.prompt_version,
+        )
+        pairs = find_candidate_pairs(db_path, threshold=args.threshold)
+        print(f"Embedded {rows} new concepts ({tokens} input tokens).")
+        print(f"Found {len(pairs)} candidate pair(s) at cosine ≥ {args.threshold}:")
+        for p in pairs:
+            print(f"  ({p.concept_a_id}, {p.concept_b_id}) cosine={p.cosine_similarity:.4f}")
+        return 0
+
+    from anthropic import Anthropic
+
+    if settings.anthropic_api_key is None:
+        raise SystemExit("ANTHROPIC_API_KEY required for Opus verification.")
+    anthropic_client = Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
+
+    result = resolve_concepts(
+        db_path,
+        openai_client=openai_client,
+        anthropic_client=anthropic_client,
+        threshold=args.threshold,
+        prompt_version=args.prompt_version,
+    )
+    _log.info(
+        "pass3.resolve.complete",
+        embeddings_written=result.embeddings_written,
+        candidate_pairs=len(result.candidate_pairs),
+        verifications=len(result.verifications),
+        total_embedding_tokens=result.total_embedding_tokens,
+        total_llm_cost_usd=result.total_llm_cost_usd,
+    )
+    print(
+        f"Resolved: {len(result.verifications)} pair verifications "
+        f"(${result.total_llm_cost_usd:.4f} Opus cost; "
+        f"{result.total_embedding_tokens} embedding tokens)."
+    )
+    same_count = sum(1 for v in result.verifications if v["verdict"] == "same")
+    print(f"  same: {same_count}, different: {len(result.verifications) - same_count}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
