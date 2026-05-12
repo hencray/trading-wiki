@@ -13,6 +13,8 @@ from trading_wiki.handlers.base import ContentRecord, Segment
 if TYPE_CHECKING:
     from trading_wiki.extractors.pass1 import Pass1Output
     from trading_wiki.extractors.pass2.concept import ConceptOutput
+    from trading_wiki.extractors.pass2.market_condition import MarketConditionOutput
+    from trading_wiki.extractors.pass2.rule import RuleOutput
     from trading_wiki.extractors.pass2.setup import SetupOutput
     from trading_wiki.extractors.pass2.strategy import StrategyOutput
     from trading_wiki.extractors.pass2.trade_example import TradeExampleOutput
@@ -513,6 +515,109 @@ def load_strategies_for_version(
             row_dict = dict(row)
             row_dict["indicators_used"] = json.loads(row_dict["indicators_used"])
             row_dict["instruments"] = json.loads(row_dict["instruments"])
+            result.append(row_dict)
+        return result
+
+
+def save_rules(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+    output: "RuleOutput",
+) -> None:
+    """Write all entities from a RuleOutput."""
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        for entity in output.entities:
+            data = entity.model_dump()
+            conn.execute(
+                """
+                INSERT INTO rules (
+                    source_chunk_id, name, statement, rationale, category,
+                    confidence, prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_chunk_id,
+                    data["name"],
+                    data["statement"],
+                    data["rationale"],
+                    data["category"],
+                    data["confidence"],
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_rules_for_version(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return Rule rows for ``(source_chunk_id, prompt_version)``."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM rules WHERE source_chunk_id = ? AND prompt_version = ? ORDER BY id",
+            (source_chunk_id, prompt_version),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def save_market_conditions(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+    output: "MarketConditionOutput",
+) -> None:
+    """Write all entities from a MarketConditionOutput."""
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        for entity in output.entities:
+            data = entity.model_dump()
+            conn.execute(
+                """
+                INSERT INTO market_conditions (
+                    source_chunk_id, label, description, time_window,
+                    affected_instruments, confidence, prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_chunk_id,
+                    data["label"],
+                    data["description"],
+                    data["time_window"],
+                    json.dumps(data["affected_instruments"]),
+                    data["confidence"],
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_market_conditions_for_version(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return MarketCondition rows for ``(source_chunk_id, prompt_version)``.
+
+    JSON-decodes ``affected_instruments``.
+    """
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM market_conditions WHERE source_chunk_id = ? AND prompt_version = ? "
+            "ORDER BY id",
+            (source_chunk_id, prompt_version),
+        ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["affected_instruments"] = json.loads(row_dict["affected_instruments"])
             result.append(row_dict)
         return result
 

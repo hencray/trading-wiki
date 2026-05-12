@@ -25,13 +25,14 @@ def test_pass2_config_constants_resolve():
     assert "definition" in co_text
     assert "related_terms" in co_text
 
-    # Routing table covers the v0.2 base routes plus Slice 6 additions
-    # (strategy + setup; setup also routes on `strategy`-labeled chunks).
+    # Routing table covers the v0.2 base routes plus Slice 6 additions.
     expected_routes = {
         "trade_example": {"example"},
         "concept": {"concept", "qa"},
         "strategy": {"strategy"},
         "setup": {"strategy"},
+        "rule": {"strategy", "psychology"},
+        "market_condition": {"market_commentary"},
     }
     assert expected_routes == PASS2_LABEL_ROUTES
 

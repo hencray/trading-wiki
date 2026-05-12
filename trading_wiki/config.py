@@ -32,6 +32,12 @@ PROMPT_PASS2_STRATEGY_PATH = _REPO_ROOT / "prompts" / "pass2_strategy.md"
 PROMPT_VERSION_PASS2_SETUP = "pass2-setup-v1"
 PROMPT_PASS2_SETUP_PATH = _REPO_ROOT / "prompts" / "pass2_setup.md"
 
+PROMPT_VERSION_PASS2_RULE = "pass2-rule-v1"
+PROMPT_PASS2_RULE_PATH = _REPO_ROOT / "prompts" / "pass2_rule.md"
+
+PROMPT_VERSION_PASS2_MARKET_CONDITION = "pass2-market-condition-v1"
+PROMPT_PASS2_MARKET_CONDITION_PATH = _REPO_ROOT / "prompts" / "pass2_market_condition.md"
+
 # Pass 2 label-based routing (spec §4). Keys are entity-type identifiers used
 # internally by the dispatcher; values are the set of Pass 1 chunk labels that
 # route to that entity-type's extractor. Strict — labels not in any value-set
@@ -41,4 +47,6 @@ PASS2_LABEL_ROUTES: dict[str, set[str]] = {
     "concept": {"concept", "qa"},
     "strategy": {"strategy"},
     "setup": {"strategy"},
+    "rule": {"strategy", "psychology"},
+    "market_condition": {"market_commentary"},
 }
