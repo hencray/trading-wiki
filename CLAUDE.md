@@ -2,9 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current State: Phase 2A COMPLETE end-to-end (Pass 1 + 2 + 3 MVP + 4 all shipped); Phase 2B + Phase 2C remain (plus Pass 3 generalization polish)
+## Current State: Phase 2 MVP COMPLETE end-to-end (2A + 2B + 2C v2 all shipped 2026-05-11); polish carried forward to v0.4
 
-**Pass 4 Relationship Building MVP shipped 2026-05-11.** Migration `0011-entity-relationships.sql` adds polymorphic `entity_relationships` + `pass4_runs`. New module `trading_wiki/extractors/pass4/relationship_builder.py`. 8 predicates (`uses`/`prerequisite_for`/`variant_of`/`contradicts`/`supports`/`depends_on`/`illustrates`/`applies_in`). Locked at `pass4-v1`. Live run on 12 content_ids: 53 multi-entity chunks → 280 relationships, 0 invalid refs (~$0.91 Sonnet cost). Predicate distribution: supports 119 / uses 72 / prerequisite_for 46 / variant_of 14 / contradicts 12 / depends_on 11 / illustrates 4 / applies_in 2.
+**Phase 2A:** Pass 1 + Pass 2 (TE, Concept, Strategy, Setup, Rule, MarketCondition all operational) + Pass 3 Concept resolution MVP (OpenAI embeddings + sqlite-vec + Opus pairwise verification) + Pass 4 relationships (280 triples, 8 predicates) — all locked at v1 prompts.
+
+**Phase 2B:** Review queue `review_queue` table with 4 trigger criteria (low_confidence_entity / contradicts_relationship / codeability_4plus[HARD GATE] / borderline_merge) + `check_hard_gate_for_entity` for downstream gating. Live: 17 queue items on production corpus.
+
+**Phase 2C v2:** Chart extraction via ffmpeg scene-change + Sonnet 4.6 vision (`charts` table, dedup by image_hash, frames stored under gitignored storage/charts/). Pipeline end-to-end functional; **scene-threshold tuning carried forward to v0.4** (5 smoke-sampled frames came back non-chart; fixed-interval sampler likely needed). **Phase 2C v1** (image sources) deferred until PDF/EPUB/Discord content lands.
+
+**Polish carried to v0.4:** generalize Pass 3 resolver for non-Concept entities; Phase 2C tuning; Phase 2C v1.
 
 
 
