@@ -380,6 +380,7 @@ def test_cli_writes_artifacts_for_all(tmp_path: Path, monkeypatch: _Any) -> None
     # Single info finding: 295.0 matches "I entered NVDA at 295"
     assert payload["counts"]["info"] == 1
     assert payload["counts"]["high"] == 0
+    assert payload["prompt_version"] == "pass2-trade-example-v1"
 
 
 def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:
@@ -422,6 +423,7 @@ def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:
         findings=findings,
         chunk_texts=chunk_texts,
         output_base_dir=tmp_path,
+        prompt_version="pass2-trade-example-v2",
     )
 
     assert run_dir.is_dir()
@@ -429,9 +431,12 @@ def test_write_audit_artifacts_writes_json_and_md(tmp_path: Path) -> None:
 
     findings_json = json.loads((run_dir / "findings.json").read_text(encoding="utf-8"))
     assert findings_json["counts"] == {"high": 1, "medium": 0, "info": 1, "total": 2}
+    assert findings_json["prompt_version"] == "pass2-trade-example-v2"
     assert len(findings_json["findings"]) == 2
 
     md = (run_dir / "findings.md").read_text(encoding="utf-8")
+    # Header surfaces the prompt_version so artifacts disambiguate v1 vs v2 runs.
+    assert "prompt_version: `pass2-trade-example-v2`" in md
     # High and medium are surfaced in the report; info is summarized but not
     # rendered with chunk excerpts.
     assert "## High severity" in md
@@ -496,3 +501,53 @@ def test_load_te_rows_filters_to_specified_prompt_version(tmp_path: Path) -> Non
     assert v1_rows[0]["entry_price"] == 295.0
     assert len(v2_rows) == 1
     assert v2_rows[0]["entry_price"] == 300.0
+
+
+def test_cli_prompt_version_flag_filters_to_v2(tmp_path: Path, monkeypatch: _Any) -> None:
+    """--prompt-version pass2-trade-example-v2 should audit v2 rows, not v1."""
+    from trading_wiki.config import PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2
+    from trading_wiki.extractors.pass2.price_audit import main
+
+    db_path = tmp_path / "research.db"
+    _seed_audit_corpus(db_path)
+    # Add a v2 row whose price is NOT in the chunk text → high severity expected.
+    with sqlite3.connect(db_path) as conn:
+        chunk_id = conn.execute("SELECT id FROM chunks").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO trade_examples
+            (source_chunk_id, ticker, direction, instrument_type,
+             trade_date, entry_price, stop_price, target_price, exit_price,
+             entry_description, exit_description, outcome_text,
+             outcome_classification, lessons, confidence,
+             prompt_version, created_at)
+            VALUES (?, 'NVDA', 'long', 'stock',
+                    NULL, 2.95, NULL, NULL, NULL,
+                    'long at 2.95', 'flat', 'ok',
+                    'scratch', NULL, 'high',
+                    ?, '2026-05-11')
+            """,
+            (chunk_id, PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2),
+        )
+        conn.commit()
+
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.price_audit.Settings",
+        lambda: SimpleNamespace(db_path=db_path),
+    )
+    monkeypatch.setattr(
+        "trading_wiki.extractors.pass2.price_audit._OUTPUT_BASE_DIR",
+        tmp_path / "out",
+    )
+
+    rc = main(["--all", "--prompt-version", PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2])
+    assert rc == 0
+    run_dirs = list((tmp_path / "out").iterdir())
+    assert len(run_dirs) == 1
+    payload = json.loads((run_dirs[0] / "findings.json").read_text(encoding="utf-8"))
+    # The v2 row's entry_price 2.95 isn't literally in "I entered NVDA at 295";
+    # x100 variant "295" IS present → severity high.
+    assert payload["counts"]["high"] == 1
+    # v1 row (entry_price 295.0, literal-present) must NOT appear in v2 audit.
+    assert payload["counts"]["info"] == 0
+    assert payload["prompt_version"] == PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2

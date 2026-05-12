@@ -236,11 +236,14 @@ def _count_by_severity(findings: list[PriceAuditFinding]) -> dict[str, int]:
 def _render_findings_md(
     findings: list[PriceAuditFinding],
     chunk_texts: dict[int, str],
+    *,
+    prompt_version: str,
 ) -> str:
     counts = _count_by_severity(findings)
     lines = [
         "# TE Price Audit Findings",
         "",
+        f"- prompt_version: `{prompt_version}`",
         f"- High: {counts['high']}",
         f"- Medium: {counts['medium']}",
         f"- Info (literal-present, not flagged): {counts['info']}",
@@ -293,10 +296,12 @@ def write_audit_artifacts(
     findings: list[PriceAuditFinding],
     chunk_texts: dict[int, str],
     output_base_dir: Path | None = None,
+    prompt_version: str = PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
 ) -> Path:
     """Write ``findings.json`` and ``findings.md`` to a fresh run directory.
 
-    Returns the run directory path.
+    Returns the run directory path. ``prompt_version`` is recorded in both
+    artifacts so future readers can tell v1 audits from v2 audits.
     """
     base = output_base_dir if output_base_dir is not None else _OUTPUT_BASE_DIR
     run_id = datetime.now().isoformat(timespec="seconds").replace(":", "-")
@@ -305,6 +310,7 @@ def write_audit_artifacts(
 
     payload: dict[str, Any] = {
         "run_id": run_id,
+        "prompt_version": prompt_version,
         "counts": _count_by_severity(findings),
         "findings": [
             {
@@ -325,7 +331,8 @@ def write_audit_artifacts(
     }
     (run_dir / "findings.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (run_dir / "findings.md").write_text(
-        _render_findings_md(findings, chunk_texts), encoding="utf-8"
+        _render_findings_md(findings, chunk_texts, prompt_version=prompt_version),
+        encoding="utf-8",
     )
     return run_dir
 
@@ -375,21 +382,35 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--content-id", type=int, default=None)
     group.add_argument("--all", action="store_true")
+    parser.add_argument(
+        "--prompt-version",
+        type=str,
+        default=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        help=(
+            "TradeExample prompt_version to audit. Defaults to the locked v1 production version."
+        ),
+    )
     args = parser.parse_args(argv)
 
     db_path = Settings().db_path
     te_rows, chunk_rows = _load_te_rows_and_chunks(
         db_path,
         content_id=args.content_id if not args.all else None,
+        prompt_version=args.prompt_version,
     )
 
     findings = audit_trade_example_prices(te_rows=te_rows, chunk_rows=chunk_rows)
     chunk_texts = {int(c["id"]): str(c["text"]) for c in chunk_rows}
-    run_dir = write_audit_artifacts(findings=findings, chunk_texts=chunk_texts)
+    run_dir = write_audit_artifacts(
+        findings=findings,
+        chunk_texts=chunk_texts,
+        prompt_version=args.prompt_version,
+    )
 
     _log.info(
         "price_audit.complete",
         run_dir=str(run_dir),
+        prompt_version=args.prompt_version,
         counts=_count_by_severity(findings),
     )
     print(f"Wrote {run_dir}")
