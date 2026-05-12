@@ -2,7 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current State: Phase 2A Pass 2 entity types ALL SHIPPED + Pass 3 Concept MVP; Pass 3 generalize / Pass 4 / 2B / 2C remain
+## Current State: Phase 2A COMPLETE end-to-end (Pass 1 + 2 + 3 MVP + 4 all shipped); Phase 2B + Phase 2C remain (plus Pass 3 generalization polish)
+
+**Pass 4 Relationship Building MVP shipped 2026-05-11.** Migration `0011-entity-relationships.sql` adds polymorphic `entity_relationships` + `pass4_runs`. New module `trading_wiki/extractors/pass4/relationship_builder.py`. 8 predicates (`uses`/`prerequisite_for`/`variant_of`/`contradicts`/`supports`/`depends_on`/`illustrates`/`applies_in`). Locked at `pass4-v1`. Live run on 12 content_ids: 53 multi-entity chunks → 280 relationships, 0 invalid refs (~$0.91 Sonnet cost). Predicate distribution: supports 119 / uses 72 / prerequisite_for 46 / variant_of 14 / contradicts 12 / depends_on 11 / illustrates 4 / applies_in 2.
+
+
 
 **Pass 2 entity types COMPLETE 2026-05-11.** All 6 from PROJECT_PLAN.md schema operational: TradeExample, Concept, Strategy, Setup, Rule, MarketCondition. Migrations 0007-0010 add per-entity tables + widen `pass2_runs.extractor` CHECK. Locked prompts: `pass2-trade-example-v1`+`v2`, `pass2-concept-v1`, `pass2-strategy-v1`, `pass2-setup-v1`, `pass2-rule-v1`, `pass2-market-condition-v1`. Dispatcher uses independent if blocks (multiple extractors per chunk via PASS2_LABEL_ROUTES). **Final entity counts (12 videos / 95 chunks):** 12 v1 TE + 9 v2 TE / 112 Concepts / 9 Strategies / 19 Setups / 100 Rules / 1 MarketCondition.
 
