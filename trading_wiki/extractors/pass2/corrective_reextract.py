@@ -11,6 +11,7 @@ Spec: docs/superpowers/specs/2026-05-11-pass2-te-corrective-reextract-design.md
 
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -20,6 +21,12 @@ from typing import Any
 
 import structlog
 
+from trading_wiki.config import (
+    PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+    PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+    PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+)
+from trading_wiki.core.secrets import Settings
 from trading_wiki.extractors.pass2 import trade_example as te_mod
 from trading_wiki.extractors.pass2.trade_example import TradeExample
 
@@ -220,3 +227,60 @@ def write_corrective_artifacts(
     (run_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (run_dir / "summary.md").write_text(_render_summary_md(result), encoding="utf-8")
     return run_dir
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m trading_wiki.extractors.pass2.corrective_reextract",
+        description=(
+            "Re-extract Pass 2 TradeExample chunks under the v2 prompt. "
+            "One-off driver for the Phase 2A v0.3 corrective slice."
+        ),
+    )
+    parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=None,
+        help="Override the production DB path. Defaults to Settings().db_path.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=("List baseline chunk_ids and exit without re-extracting or writing any artifacts."),
+    )
+    args = parser.parse_args(argv)
+
+    db_path = args.db_path if args.db_path is not None else Settings().db_path
+    chunk_ids = _discover_baseline_chunk_ids(
+        db_path,
+        prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+    )
+
+    if args.dry_run:
+        print(
+            f"Would re-extract {len(chunk_ids)} chunks under "
+            f"{PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2}:"
+        )
+        for chunk_id in chunk_ids:
+            print(f"  chunk_id={chunk_id}")
+        return 0
+
+    result = run_corrective_reextract(
+        db_path=db_path,
+        baseline_prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        target_prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+        target_prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+    )
+    run_dir = write_corrective_artifacts(result=result)
+    _log.info(
+        "corrective_reextract.complete",
+        run_dir=str(run_dir),
+        chunks=len(result.chunk_records),
+        total_cost_usd=result.total_cost_usd,
+    )
+    print(f"Wrote {run_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
