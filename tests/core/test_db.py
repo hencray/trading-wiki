@@ -49,6 +49,63 @@ def test_apply_migrations_is_idempotent(tmp_path):
     assert "segments" in tables
 
 
+def test_migration_0006_creates_concept_resolutions_table(tmp_path):
+    db_path = tmp_path / "test.db"
+    apply_migrations(db_path)
+    tables = _table_names(db_path)
+    assert "concept_resolutions" in tables
+    # Verify the expected columns + UNIQUE constraint.
+    import sqlite3
+
+    with sqlite3.connect(db_path) as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(concept_resolutions)")}
+        assert {
+            "concept_id",
+            "canonical_concept_id",
+            "similarity_score",
+            "llm_verdict",
+            "llm_reason",
+            "embedding_model",
+            "embedding_model_version",
+            "resolved_at",
+        }.issubset(cols)
+        # CHECK constraint on llm_verdict — inserting an invalid value should fail.
+        # First create a parent concept row to satisfy the FK.
+        conn.execute(
+            """
+            INSERT INTO content (source_type, source_id, title, raw_text,
+                                  created_at, ingested_at)
+            VALUES ('local_video','x','x','x','2026-05-11','2026-05-11')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO chunks (content_id, seq, start_seg_seq, end_seg_seq,
+                                label, confidence, summary, text,
+                                prompt_version, created_at)
+            VALUES (1, 0, 0, 0, 'concept', 'high', 's', 't', 'pass1-v1', '2026-05-11')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO concepts (source_chunk_id, term, definition, related_terms,
+                                   confidence, prompt_version, created_at)
+            VALUES (1, 't', 'd', '[]', 'high', 'pass2-concept-v1', '2026-05-11')
+            """
+        )
+        import pytest
+
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                """
+                INSERT INTO concept_resolutions
+                (concept_id, canonical_concept_id, llm_verdict,
+                 embedding_model, embedding_model_version, resolved_at)
+                VALUES (1, 1, 'bogus', 'x', 'v1', '2026-05-11')
+                """
+            )
+
+
 def test_save_and_load_content_record_roundtrips(tmp_path):
     db_path = tmp_path / "test.db"
     apply_migrations(db_path)
