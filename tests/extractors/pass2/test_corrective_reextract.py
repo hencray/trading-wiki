@@ -7,6 +7,8 @@ from datetime import UTC
 from datetime import datetime as _dt
 from pathlib import Path
 
+import pytest
+
 
 def _seed_baseline_corpus(db_path: Path) -> list[int]:
     """Seed a minimal DB with three chunks: two routed to TradeExample with v1
@@ -89,3 +91,93 @@ def test_discover_baseline_chunk_ids_returns_deduped_v1_chunks(
 
     got = _discover_baseline_chunk_ids(db_path, prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE)
     assert got == expected
+
+
+def test_run_corrective_reextract_calls_extractor_per_chunk_and_aggregates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_corrective_reextract iterates the baseline chunk ids and aggregates
+    one ChunkRecord per chunk with v1_count, v2_count, v2_entities, cost."""
+    from trading_wiki.config import (
+        PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+    )
+    from trading_wiki.core.llm import UsageRecord
+    from trading_wiki.extractors.pass2 import trade_example as te_mod
+    from trading_wiki.extractors.pass2.corrective_reextract import (
+        run_corrective_reextract,
+    )
+    from trading_wiki.extractors.pass2.trade_example import TradeExample
+
+    db_path = tmp_path / "research.db"
+    baseline_chunk_ids = _seed_baseline_corpus(db_path)
+
+    fake_entity = TradeExample(
+        ticker="NVDA",
+        direction="long",
+        instrument_type="stock",
+        entry_price=2.95,
+        entry_description="long at 2.95",
+        exit_description="flat",
+        outcome_text="ok",
+        confidence="high",
+    )
+    fake_usage = UsageRecord(
+        model="claude-sonnet-4-6",
+        input_tokens=100,
+        output_tokens=50,
+        cost_estimate_usd=0.01,
+    )
+
+    from typing import Any as _Any
+
+    calls: list[dict[str, _Any]] = []
+
+    def fake_extract(
+        *,
+        chunk_id: int,
+        db_path: Path,
+        prompt_path: Path,
+        prompt_version: str,
+        persist: bool,
+    ) -> tuple[list[TradeExample], UsageRecord]:
+        calls.append(
+            {
+                "chunk_id": chunk_id,
+                "prompt_path": prompt_path,
+                "prompt_version": prompt_version,
+                "persist": persist,
+            }
+        )
+        return [fake_entity], fake_usage
+
+    monkeypatch.setattr(te_mod, "extract_trade_examples_for_chunk", fake_extract)
+
+    result = run_corrective_reextract(
+        db_path=db_path,
+        baseline_prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE,
+        target_prompt_path=PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH,
+        target_prompt_version=PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2,
+    )
+
+    # Both baseline chunks were processed; the qa chunk (no TE rows) skipped.
+    assert sorted(c["chunk_id"] for c in calls) == sorted(baseline_chunk_ids)
+    for c in calls:
+        assert c["prompt_path"] == PROMPT_PASS2_TRADE_EXAMPLE_V2_PATH
+        assert c["prompt_version"] == PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2
+        assert c["persist"] is True
+
+    # Per-chunk records aggregated correctly.
+    assert len(result.chunk_records) == 2
+    for record in result.chunk_records:
+        assert record.v1_count == 1
+        assert record.v2_count == 1
+        assert record.cost_usd == 0.01
+        assert len(record.v2_entities) == 1
+        assert record.v2_entities[0]["ticker"] == "NVDA"
+
+    assert result.total_cost_usd == pytest.approx(0.02)
+    assert result.run_id  # ISO timestamp; presence-only check
+    assert result.baseline_prompt_version == PROMPT_VERSION_PASS2_TRADE_EXAMPLE
+    assert result.target_prompt_version == PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2
