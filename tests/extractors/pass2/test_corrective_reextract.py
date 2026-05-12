@@ -181,3 +181,72 @@ def test_run_corrective_reextract_calls_extractor_per_chunk_and_aggregates(
     assert result.run_id  # ISO timestamp; presence-only check
     assert result.baseline_prompt_version == PROMPT_VERSION_PASS2_TRADE_EXAMPLE
     assert result.target_prompt_version == PROMPT_VERSION_PASS2_TRADE_EXAMPLE_V2
+
+
+def test_write_corrective_artifacts_writes_json_and_md(tmp_path: Path) -> None:
+    """write_corrective_artifacts writes summary.json + summary.md under
+    ``<base>/<run_id>/`` with the expected fields."""
+    import json
+
+    from trading_wiki.extractors.pass2.corrective_reextract import (
+        ChunkRecord,
+        RunResult,
+        write_corrective_artifacts,
+    )
+
+    result = RunResult(
+        run_id="2026-05-11T10-00-00",
+        baseline_prompt_version="pass2-trade-example-v1",
+        target_prompt_version="pass2-trade-example-v2",
+        chunk_records=[
+            ChunkRecord(
+                chunk_id=12,
+                v1_count=1,
+                v2_count=1,
+                v2_entities=[
+                    {
+                        "ticker": "NVDA",
+                        "direction": "long",
+                        "trade_date": None,
+                        "entry_price": 12.50,
+                        "stop_price": None,
+                        "target_price": 14.45,
+                        "exit_price": None,
+                    }
+                ],
+                cost_usd=0.03,
+            ),
+            ChunkRecord(
+                chunk_id=74,
+                v1_count=1,
+                v2_count=0,
+                v2_entities=[],
+                cost_usd=0.02,
+            ),
+        ],
+        total_cost_usd=0.05,
+    )
+
+    run_dir = write_corrective_artifacts(result=result, output_base_dir=tmp_path)
+    assert run_dir.parent == tmp_path
+    assert run_dir.name == "2026-05-11T10-00-00"
+
+    payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert payload["run_id"] == "2026-05-11T10-00-00"
+    assert payload["baseline_prompt_version"] == "pass2-trade-example-v1"
+    assert payload["target_prompt_version"] == "pass2-trade-example-v2"
+    assert payload["total_cost_usd"] == 0.05
+    assert len(payload["chunk_records"]) == 2
+    assert payload["chunk_records"][0]["chunk_id"] == 12
+    assert payload["chunk_records"][1]["v2_count"] == 0
+
+    md = (run_dir / "summary.md").read_text(encoding="utf-8")
+    assert "# Corrective Re-extract Summary" in md
+    assert "baseline: `pass2-trade-example-v1`" in md
+    assert "target: `pass2-trade-example-v2`" in md
+    assert "Total cost: $0.05" in md
+    assert "chunk_id=12" in md
+    assert "v1=1 → v2=1" in md
+    assert "entry_price=12.5" in md  # 12.50 stringifies as 12.5
+    assert "chunk_id=74" in md
+    assert "v1=1 → v2=0" in md

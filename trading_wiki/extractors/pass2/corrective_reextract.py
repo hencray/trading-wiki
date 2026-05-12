@@ -11,6 +11,7 @@ Spec: docs/superpowers/specs/2026-05-11-pass2-te-corrective-reextract-design.md
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,6 +24,8 @@ from trading_wiki.extractors.pass2 import trade_example as te_mod
 from trading_wiki.extractors.pass2.trade_example import TradeExample
 
 _log = structlog.get_logger(__name__)
+
+_OUTPUT_BASE_DIR = Path("data/corrective")
 
 
 @dataclass(frozen=True)
@@ -151,3 +154,69 @@ def run_corrective_reextract(
         chunk_records=records,
         total_cost_usd=total_cost,
     )
+
+
+def _render_summary_md(result: RunResult) -> str:
+    """Render a per-chunk markdown summary of one RunResult."""
+    lines = [
+        "# Corrective Re-extract Summary",
+        "",
+        f"- run_id: `{result.run_id}`",
+        f"- baseline: `{result.baseline_prompt_version}`",
+        f"- target: `{result.target_prompt_version}`",
+        f"- Chunks processed: {len(result.chunk_records)}",
+        f"- Total cost: ${result.total_cost_usd:.2f}",
+        "",
+        "## Per-chunk changes",
+        "",
+    ]
+    for r in result.chunk_records:
+        lines.append(
+            f"- chunk_id={r.chunk_id}: v1={r.v1_count} → v2={r.v2_count} (${r.cost_usd:.4f})"
+        )
+        for e in r.v2_entities:
+            price_fields = [
+                f"{k}={v}" for k, v in e.items() if k.endswith("_price") and v is not None
+            ]
+            if price_fields:
+                lines.append(
+                    f"  - {e.get('ticker')} {e.get('direction')}: " + ", ".join(price_fields)
+                )
+            else:
+                lines.append(f"  - {e.get('ticker')} {e.get('direction')}: (no prices)")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def write_corrective_artifacts(
+    *,
+    result: RunResult,
+    output_base_dir: Path | None = None,
+) -> Path:
+    """Write ``summary.json`` and ``summary.md`` to ``<base>/<run_id>/``.
+
+    Returns the run directory path.
+    """
+    base = output_base_dir if output_base_dir is not None else _OUTPUT_BASE_DIR
+    run_dir = base / result.run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    payload: dict[str, Any] = {
+        "run_id": result.run_id,
+        "baseline_prompt_version": result.baseline_prompt_version,
+        "target_prompt_version": result.target_prompt_version,
+        "total_cost_usd": result.total_cost_usd,
+        "chunk_records": [
+            {
+                "chunk_id": r.chunk_id,
+                "v1_count": r.v1_count,
+                "v2_count": r.v2_count,
+                "v2_entities": r.v2_entities,
+                "cost_usd": r.cost_usd,
+            }
+            for r in result.chunk_records
+        ],
+    }
+    (run_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (run_dir / "summary.md").write_text(_render_summary_md(result), encoding="utf-8")
+    return run_dir
