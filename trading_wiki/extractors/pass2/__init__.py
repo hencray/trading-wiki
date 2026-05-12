@@ -16,6 +16,7 @@ from trading_wiki.core.db import load_chunks_for_version
 from trading_wiki.core.llm import UsageRecord
 from trading_wiki.core.secrets import Settings
 from trading_wiki.extractors.pass2.concept import extract_concepts_for_chunk
+from trading_wiki.extractors.pass2.strategy import extract_strategies_for_chunk
 from trading_wiki.extractors.pass2.trade_example import (
     extract_trade_examples_for_chunk,
 )
@@ -29,6 +30,7 @@ class Pass2Summary:
     chunks_routed: int = 0
     trade_examples_written: int = 0
     concepts_written: int = 0
+    strategies_written: int = 0
     failed_chunks: list[tuple[int, str]] = field(default_factory=list)
     total_input_tokens: int = 0
     total_output_tokens: int = 0
@@ -64,6 +66,7 @@ def extract(*, content_id: int, db_path: Path | None = None) -> Pass2Summary:
     summary = Pass2Summary()
     te_labels = PASS2_LABEL_ROUTES["trade_example"]
     co_labels = PASS2_LABEL_ROUTES["concept"]
+    st_labels = PASS2_LABEL_ROUTES["strategy"]
 
     for chunk in chunks:
         summary.chunks_seen += 1
@@ -98,7 +101,6 @@ def extract(*, content_id: int, db_path: Path | None = None) -> Pass2Summary:
                 summary.concepts_written += len(co_entities)
                 _accumulate(summary, co_usage)
             except Exception as e:
-                # Per-chunk resilience by design: one bad chunk shouldn't lose work on others.
                 summary.failed_chunks.append((chunk_id, repr(e)))
                 _log.warning(
                     "pass2.dispatch.failed",
@@ -106,7 +108,24 @@ def extract(*, content_id: int, db_path: Path | None = None) -> Pass2Summary:
                     label=label,
                     error=repr(e),
                 )
-        # else: not routed in v0.2; fall through.
+        elif label in st_labels:
+            summary.chunks_routed += 1
+            try:
+                st_entities, st_usage = extract_strategies_for_chunk(
+                    chunk_id=chunk_id,
+                    db_path=db_path,
+                )
+                summary.strategies_written += len(st_entities)
+                _accumulate(summary, st_usage)
+            except Exception as e:
+                summary.failed_chunks.append((chunk_id, repr(e)))
+                _log.warning(
+                    "pass2.dispatch.failed",
+                    chunk_id=chunk_id,
+                    label=label,
+                    error=repr(e),
+                )
+        # else: not routed (psychology, market_commentary, noise); fall through.
 
     _log.info(
         "pass2.extract.ok",
@@ -115,6 +134,7 @@ def extract(*, content_id: int, db_path: Path | None = None) -> Pass2Summary:
         chunks_routed=summary.chunks_routed,
         trade_examples_written=summary.trade_examples_written,
         concepts_written=summary.concepts_written,
+        strategies_written=summary.strategies_written,
         failed_count=len(summary.failed_chunks),
         total_input_tokens=summary.total_input_tokens,
         total_output_tokens=summary.total_output_tokens,
@@ -128,7 +148,9 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="python -m trading_wiki.extractors.pass2",
-        description="Run Pass 2 (TradeExample + Concept extraction) on a single content_id.",
+        description=(
+            "Run Pass 2 (TradeExample + Concept + Strategy extraction) on a single content_id."
+        ),
     )
     parser.add_argument(
         "--content-id",
@@ -142,7 +164,8 @@ def main(argv: list[str] | None = None) -> int:
         f"Pass 2 for content_id={args.content_id}: "
         f"{summary.chunks_routed}/{summary.chunks_seen} chunks routed; "
         f"{summary.trade_examples_written} trade examples + "
-        f"{summary.concepts_written} concepts written; "
+        f"{summary.concepts_written} concepts + "
+        f"{summary.strategies_written} strategies written; "
         f"{len(summary.failed_chunks)} failed chunks; "
         f"cost ≈ ${summary.total_cost_usd:.4f}."
     )

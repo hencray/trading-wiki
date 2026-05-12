@@ -13,6 +13,7 @@ from trading_wiki.handlers.base import ContentRecord, Segment
 if TYPE_CHECKING:
     from trading_wiki.extractors.pass1 import Pass1Output
     from trading_wiki.extractors.pass2.concept import ConceptOutput
+    from trading_wiki.extractors.pass2.strategy import StrategyOutput
     from trading_wiki.extractors.pass2.trade_example import TradeExampleOutput
 
 _MIGRATIONS_DIR = Path(__file__).parent.parent.parent / "migrations"
@@ -384,6 +385,74 @@ def load_concepts_for_version(
         for row in rows:
             row_dict = dict(row)
             row_dict["related_terms"] = json.loads(row_dict["related_terms"])
+            result.append(row_dict)
+        return result
+
+
+def save_strategies(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+    output: "StrategyOutput",
+) -> None:
+    """Write all entities from a StrategyOutput in a single transaction.
+
+    JSON-encodes ``indicators_used`` and ``instruments`` on the way in.
+    Raises sqlite3.IntegrityError on CHECK / FK violations; the transaction
+    is rolled back so partial writes don't land.
+    """
+    now = datetime.now().isoformat()
+    with _connect(db_path) as conn:
+        for entity in output.entities:
+            data = entity.model_dump()
+            conn.execute(
+                """
+                INSERT INTO strategies (
+                    source_chunk_id, name, thesis, entry_rules, exit_rules,
+                    risk_management, indicators_used, timeframe, instruments,
+                    codeability_score, confidence, prompt_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_chunk_id,
+                    data["name"],
+                    data["thesis"],
+                    data["entry_rules"],
+                    data["exit_rules"],
+                    data["risk_management"],
+                    json.dumps(data["indicators_used"]),
+                    data["timeframe"],
+                    json.dumps(data["instruments"]),
+                    data["codeability_score"],
+                    data["confidence"],
+                    prompt_version,
+                    now,
+                ),
+            )
+
+
+def load_strategies_for_version(
+    db_path: Path | str,
+    *,
+    source_chunk_id: int,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Return Strategy rows for ``(source_chunk_id, prompt_version)``.
+
+    JSON-decodes ``indicators_used`` and ``instruments`` so callers get
+    Python lists back.
+    """
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM strategies WHERE source_chunk_id = ? AND prompt_version = ? ORDER BY id",
+            (source_chunk_id, prompt_version),
+        ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["indicators_used"] = json.loads(row_dict["indicators_used"])
+            row_dict["instruments"] = json.loads(row_dict["instruments"])
             result.append(row_dict)
         return result
 

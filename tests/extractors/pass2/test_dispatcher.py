@@ -136,25 +136,30 @@ class TestExtractDispatcher:
         assert mock_co.call_count == 2
         mock_te.assert_not_called()
 
+    @patch("trading_wiki.extractors.pass2.extract_strategies_for_chunk")
     @patch("trading_wiki.extractors.pass2.extract_concepts_for_chunk")
     @patch("trading_wiki.extractors.pass2.extract_trade_examples_for_chunk")
-    def test_skips_unrouted_labels(self, mock_te, mock_co, tmp_path):
+    def test_skips_unrouted_labels(self, mock_te, mock_co, mock_st, tmp_path):
+        # Labels that should not route under Slice 6: noise, psychology,
+        # market_commentary. (strategy is routed; example, concept, qa route too.)
         db_path = tmp_path / "research.db"
         apply_migrations(db_path)
         content_id = _seed_content_with_chunks(
             db_path,
-            ["noise", "psychology", "strategy", "market_commentary"],
+            ["noise", "psychology", "market_commentary"],
         )
 
         summary = extract(content_id=content_id, db_path=db_path)
-        assert summary.chunks_seen == 4
+        assert summary.chunks_seen == 3
         assert summary.chunks_routed == 0
         assert summary.trade_examples_written == 0
         assert summary.concepts_written == 0
+        assert summary.strategies_written == 0
         assert summary.total_input_tokens == 0
         assert summary.total_cost_usd == 0.0
         mock_te.assert_not_called()
         mock_co.assert_not_called()
+        mock_st.assert_not_called()
 
     @patch("trading_wiki.extractors.pass2.extract_concepts_for_chunk")
     @patch("trading_wiki.extractors.pass2.extract_trade_examples_for_chunk")
